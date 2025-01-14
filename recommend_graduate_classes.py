@@ -13,11 +13,13 @@ st.set_page_config(
 with st.sidebar:
     st.title("問題発見と解決")
     st.write("")
-    st.write("🔎これは、大学院の授業を推薦するアプリです。")
+    st.write("🔎大学院の授業を推薦するアプリです。")
     st.write("")
     st.write("🔎成績表から自身の興味があると思われるトピックを抽出し、それに基づいて推薦します。")
     st.write("")
     st.write("🔎スケジューリング機能もあります。")
+    st.write("")
+    st.write("🔎気になった授業はすぐシラバスへ飛べるので是非面白そうな授業を探してみてください！")
     
 st.title("大学院授業推薦システム")
 
