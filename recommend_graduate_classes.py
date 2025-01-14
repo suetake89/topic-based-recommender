@@ -35,11 +35,11 @@ with tab1:
             # ファイルタイプのチェック
             if report.name.endswith('.csv'):
                 st.write("CSVファイルがアップロードされました。")
-                report_df = pd.read_csv(report)
+                df = pd.read_csv(report)
 
             elif report.name.endswith(('.xlsx', '.xls')):
                 st.write("Excelファイルがアップロードされました。")
-                report_df = pd.read_excel(report)
+                df = pd.read_excel(report)
 
             else:
                 st.error("対応していないファイル形式です。"
@@ -47,9 +47,10 @@ with tab1:
         submitted = st.form_submit_button("データアップロード")
         
         if submitted and report:
+            st.write("修正が必要な場合は、以下のテーブルを編集してください。")
+            report_df = st.data_editor(df)
             st.session_state['report_df'] = report_df
             st.success("データアップロード完了！")
-            st.write(report_df)
 
 # タブ2: 最適化実行
 with tab2:
@@ -57,12 +58,17 @@ with tab2:
         if st.button("大学院授業の推薦を実行"):
             st.write("#### 最適化結果")
             recommender = TopicBasedRecommender(st.session_state['report_df'], num_topics=30)
+            recommender.create_lda_model()
+            topic_keywords = recommender.get_topic_keywords()
+            recommender.assign_topic_to_courses()
             number_of_recommendations_by_topic = recommender.decide_number_of_recommendations_by_topic()
+            
+            st.session_state['recommender'] = recommender
             
             for topic, n_r in number_of_recommendations_by_topic:
                 if n_r == 0:
                     continue
-                temp, your_course = recommender.execute_recommendation(topic, n_r)
+                temp, your_course = recommender.execute_recommendation(topic)
 
                 # カード風表示
                 st.markdown(
@@ -93,9 +99,9 @@ with tab2:
                     f"""
                     <div style="padding: 1rem; background-color: #eaf7ff; border-radius: 10px; margin-top: 1rem;">
                         <p><strong>トピック重要ワード：</strong></p>
-                        <p>{"、".join(keyword for keyword in recommender.topic_keywords[topic][0])}</p>
+                        <p>{"、".join(keyword for keyword in topic_keywords[topic][0])}</p>
                         <p><strong>トピック専門用語：</strong></p>
-                        <p>{"、".join(keyword for keyword in recommender.topic_keywords[topic][1])}</p>
+                        <p>{"、".join(keyword for keyword in topic_keywords[topic][1])}</p>
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -105,7 +111,7 @@ with tab2:
                 st.markdown(
                     f"""
                     <div style="padding: 1rem; background-color: #eaf7ff; border-radius: 10px; margin-top: 1rem;">
-                        <p><strong>このトピックは以下のような授業に基づいています：</strong></p>
+                        <p><strong>このトピックはあなたが履修した以下の授業に基づいています：</strong></p>
                         <p>{"、".join(keyword for keyword in your_course)}</p>
                     </div>
                     """,
@@ -120,22 +126,47 @@ with tab2:
 
 # タブ3: 結果の可視化
 with tab3:
-    if 'report_df' in st.session_state and 'solution_df' in st.session_state:
-        # solution_df と report_df をマージ
-        merge_df = st.session_state['solution_df'].merge(st.session_state['report_df'], on='student_id')
-        grouped = merge_df.groupby('car_id')
+    if 'report_df' in st.session_state and 'recommender' in st.session_state:
+        if st.button("推薦システムを可視化"):    
+            visualizer = st.session_state['recommender']
+            
+            st.title("トピック分布の可視化")
+            st.write("")
+            # グラフ1
+            st.subheader("ユーザー選好のトピック分布")
+            fig_user = visualizer.plot_topic_distribution_of_user_profile()
+            st.plotly_chart(fig_user)
 
-        for car_id, group in grouped:
-            # 男女比データの準備
-            gender_counts = group['gender'].value_counts()
-            gender_labels = {0: "男性", 1: "女性"}
-            gender_counts.index = [gender_labels[idx] for idx in gender_counts.index]
+            # グラフ2
+            st.subheader("主専攻ごとのトピック分布")
+            fig_social = visualizer.plot_topic_distribution_of_social()
+            st.plotly_chart(fig_social)
 
-            # 学年比データの準備
-            grade_counts = group['grade'].value_counts()
-            grade_labels = {1: "１年生", 2: "２年生", 3: "３年生", 4: "４年生"}
-            grade_counts.index = [grade_labels[idx] for idx in grade_counts.index]
+            # グラフ3
+            st.subheader("学位プログラムごとのトピック分布")
+            fig_grad = visualizer.plot_topic_distribution_of_grad()
+            st.plotly_chart(fig_grad)
+            
+            topic_keywords =  visualizer.get_topic_keywords()
+            
+            st.write("## 各トピックの情報")
+            for topic in range(visualizer.num_topics):
+                #if n_r == 0:
+                #    continue
+                temp, your_course = visualizer.execute_recommendation(topic)
 
-            draw_pie_charts(gender_counts, grade_counts, car_id)
+                # トピック重要ワードと専門用語を囲む
+                st.markdown(
+                    f"""
+                    <div style="padding: 1rem; background-color: #eaf7ff; border-radius: 10px; margin-top: 1rem;">
+                        <p style="font-size: 25px;"><strong>トピック: {topic}</strong></p>
+                        <p><strong>トピック重要ワード：</strong></p>
+                        <p>{"、".join(keyword for keyword in topic_keywords[topic][0])}</p>
+                        <p><strong>トピック専門用語：</strong></p>
+                        <p>{"、".join(keyword for keyword in topic_keywords[topic][1])}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
     else:
-        st.error("データを先にアップロードして、最適化を実行してください。")
+        st.error("データを先にアップロードして、推薦システムを実行してください。")
