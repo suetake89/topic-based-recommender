@@ -9,7 +9,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from gensim import corpora, models
-from gensim.models import CoherenceModel
 from sklearn.metrics.pairwise import cosine_similarity
 
 
