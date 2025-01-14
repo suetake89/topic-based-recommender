@@ -21,6 +21,13 @@ tab1, tab2, tab3 = st.tabs(["データ入力", "最適化実行", "結果の可�
 
 # タブ1: データ入力
 with tab1:
+    st.info(
+        """
+        [このtwinsのリンク](https://twins.tsukuba.ac.jp/campusweb/campusportal.do?page=main&tabId=si)から成績表をダウンロードできます。  
+        一番下までスクロールし、「ダウンロード」をクリックしてください。  
+        ファイル形式と文字コードは初期設定のままで構いません。  
+        """
+    )
     with st.form("upload_form"):
         # ファイルアップロード
         report = st.file_uploader(
@@ -46,6 +53,7 @@ with tab1:
         submitted = st.form_submit_button("データアップロード")
         
         if submitted and report:
+            df = df[df['総合評価']!='履修中']
             st.write("修正が必要な場合は、以下のテーブルを編集してください。")
             report_df = st.data_editor(df)
             st.session_state['report_df'] = report_df
