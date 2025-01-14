@@ -12,7 +12,12 @@ st.set_page_config(
 
 with st.sidebar:
     st.title("問題発見と解決")
-    st.write("このアプリは、大学院の授業を推薦するためのアプリです。")
+    st.write("")
+    st.write("🔎これは、大学院の授業を推薦するアプリです。")
+    st.write("")
+    st.write("🔎成績表から自身の興味があると思われるトピックを抽出し、それに基づいて推薦します。")
+    st.write("")
+    st.write("🔎スケジューリング機能もあります。")
     
 st.title("大学院授業推薦システム")
 
@@ -180,55 +185,22 @@ with tab3:
         
 with tab4:
     if 'report_df' in st.session_state and 'recommender' in st.session_state:
-        recommender = st.session_state['recommender']
-        df = recommender.df_grad_courses
-        opt = OptimizeClasses(df)
-        df_schedule = opt.optimize()
-        
-        st.write("### 推薦された選択必修の例（２４単位以上）")
-        st.write("")
-        
-        st.write("#### 専門基礎科目かつ社会工学　（６単位以上）")
-        temp = df_schedule[(df_schedule['学位プログラム']=='社会工学関連科目') & (df_schedule['科目区分']==0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
-        st.dataframe(
-                temp,
-                column_config={
-                    "シラバス": st.column_config.LinkColumn(
-                        "シラバス",
-                        display_text="シラバスを表示",
-                    )
-                },
+        st.markdown("")
+        option = st.selectbox(
+                "学位プログラムを選択してください。",
+                ("社会工学学位プログラム", "サービス工学学位プログラム", "リスク・レジリエンス工学学位プログラム", "情報理工学位プログラム", "知能機能システム学位プログラム", "構造エネルギー工学学位プログラム"),
             )
-        
-        st.write("#### 専門基礎科目かつ社会工学以外　（２単位以上）")
-        temp = df_schedule[(df_schedule['学位プログラム']!='社会工学関連科目') & (df_schedule['科目区分']==0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
-        st.dataframe(
-                temp,
-                column_config={
-                    "シラバス": st.column_config.LinkColumn(
-                        "シラバス",
-                        display_text="シラバスを表示",
-                    )
-                },
-            )
-        
-        st.write("#### 専門科目かつ社会工学　（１０単位以上）")
-        temp = df_schedule[(df_schedule['学位プログラム']=='社会工学関連科目') & (df_schedule['科目区分']!=0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
-        st.dataframe(
-                temp,
-                column_config={
-                    "シラバス": st.column_config.LinkColumn(
-                        "シラバス",
-                        display_text="シラバスを表示",
-                    )
-                },
-            )
-        st.write("#### 専門科目かつ社会工学以外　（０単位以上）")
-        temp = df_schedule[(df_schedule['学位プログラム']!='社会工学関連科目') & (df_schedule['科目区分']!=0)]
-        if not temp.empty:
+        if option == "社会工学学位プログラム":
+            recommender = st.session_state['recommender']
+            df = recommender.df_grad_courses
+            opt = OptimizeClasses(df)
+            df_schedule = opt.optimize()
+            st.markdown("")
+            st.write("### 推薦された選択必修の例（２４単位以上）")
+            st.write("")
+            
+            st.write("#### 専門基礎科目かつ社会工学　（６単位以上）")
+            temp = df_schedule[(df_schedule['学位プログラム']=='社会工学関連科目') & (df_schedule['科目区分']==0)]
             temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
             st.dataframe(
                     temp,
@@ -239,7 +211,51 @@ with tab4:
                         )
                     },
                 )
+            
+            st.write("#### 専門基礎科目かつ社会工学以外　（２単位以上）")
+            temp = df_schedule[(df_schedule['学位プログラム']!='社会工学関連科目') & (df_schedule['科目区分']==0)]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+            st.dataframe(
+                    temp,
+                    column_config={
+                        "シラバス": st.column_config.LinkColumn(
+                            "シラバス",
+                            display_text="シラバスを表示",
+                        )
+                    },
+                )
+            
+            st.write("#### 専門科目かつ社会工学　（１０単位以上）")
+            temp = df_schedule[(df_schedule['学位プログラム']=='社会工学関連科目') & (df_schedule['科目区分']!=0)]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+            st.dataframe(
+                    temp,
+                    column_config={
+                        "シラバス": st.column_config.LinkColumn(
+                            "シラバス",
+                            display_text="シラバスを表示",
+                        )
+                    },
+                )
+            st.write("#### 専門科目かつ社会工学以外　（０単位以上）")
+            temp = df_schedule[(df_schedule['学位プログラム']!='社会工学関連科目') & (df_schedule['科目区分']!=0)]
+            if not temp.empty:
+                temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+                st.dataframe(
+                        temp,
+                        column_config={
+                            "シラバス": st.column_config.LinkColumn(
+                                "シラバス",
+                                display_text="シラバスを表示",
+                            )
+                        },
+                    )
+            else:
+                st.write("該当する科目はありません。")
+            st.markdown("")
+            st.markdown("*※時間割が被らないように選択されています。*")
+            st.markdown("*※卒業要件を満たすかは各自でもご確認ください。損害の責任は負いかねます。*")
         else:
-            st.write("該当する科目はありません。")
+            st.write("すみません。まだ対応していません。")
     else:
         st.error("データを先にアップロードして、推薦システムを実行してください。")
