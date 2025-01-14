@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-from recommend_algo import TopicBasedRecommender
+from recommend_algo import OptimizeClasses, TopicBasedRecommender
 
 st.set_page_config(
     page_title="大学院授業推薦システム",
@@ -17,7 +17,7 @@ with st.sidebar:
 st.title("大学院授業推薦システム")
 
 # タブの作成
-tab1, tab2, tab3 = st.tabs(["データ入力", "最適化実行", "結果の可視化"])
+tab1, tab2, tab3, tab4 = st.tabs(["データ入力", "最適化実行", "結果の可視化", '履修の一例'])
 
 # タブ1: データ入力
 with tab1:
@@ -96,7 +96,7 @@ with tab2:
                     column_config={
                         "シラバス": st.column_config.LinkColumn(
                             "シラバス",
-                            display_text="クリックしてシラバスを表示",
+                            display_text="シラバスを表示",
                         )
                     },
                 )
@@ -135,32 +135,32 @@ with tab2:
 with tab3:
     if 'report_df' in st.session_state and 'recommender' in st.session_state:
         if st.button("推薦システムを可視化"):    
-            visualizer = st.session_state['recommender']
+            recommender = st.session_state['recommender']
             
             st.title("トピック分布の可視化")
             st.write("")
             # グラフ1
             st.subheader("ユーザー選好のトピック分布")
-            fig_user = visualizer.plot_topic_distribution_of_user_profile()
+            fig_user = recommender.plot_topic_distribution_of_user_profile()
             st.plotly_chart(fig_user)
 
             # グラフ2
             st.subheader("主専攻ごとのトピック分布")
-            fig_social = visualizer.plot_topic_distribution_of_social()
+            fig_social = recommender.plot_topic_distribution_of_social()
             st.plotly_chart(fig_social)
 
             # グラフ3
             st.subheader("学位プログラムごとのトピック分布")
-            fig_grad = visualizer.plot_topic_distribution_of_grad()
+            fig_grad = recommender.plot_topic_distribution_of_grad()
             st.plotly_chart(fig_grad)
             
-            topic_keywords =  visualizer.get_topic_keywords()
+            topic_keywords =  recommender.get_topic_keywords()
             
             st.write("## 各トピックの情報")
-            for topic in range(visualizer.num_topics):
+            for topic in range(recommender.num_topics):
                 #if n_r == 0:
                 #    continue
-                temp, your_course = visualizer.execute_recommendation(topic)
+                temp, your_course = recommender.execute_recommendation(topic)
 
                 # トピック重要ワードと専門用語を囲む
                 st.markdown(
@@ -175,5 +175,71 @@ with tab3:
                     """,
                     unsafe_allow_html=True
                 )
+    else:
+        st.error("データを先にアップロードして、推薦システムを実行してください。")
+        
+with tab4:
+    if 'report_df' in st.session_state and 'recommender' in st.session_state:
+        recommender = st.session_state['recommender']
+        df = recommender.df_grad_courses
+        opt = OptimizeClasses(df)
+        df_schedule = opt.optimize()
+        
+        st.write("### 推薦された選択必修の例（２４単位以上）")
+        st.write("")
+        
+        st.write("#### 専門基礎科目かつ社会工学　（６単位以上）")
+        temp = df_schedule[(df_schedule['学位プログラム']=='社会工学関連科目') & (df_schedule['科目区分']==0)]
+        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+        st.dataframe(
+                temp,
+                column_config={
+                    "シラバス": st.column_config.LinkColumn(
+                        "シラバス",
+                        display_text="シラバスを表示",
+                    )
+                },
+            )
+        
+        st.write("#### 専門基礎科目かつ社会工学以外　（２単位以上）")
+        temp = df_schedule[(df_schedule['学位プログラム']!='社会工学関連科目') & (df_schedule['科目区分']==0)]
+        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+        st.dataframe(
+                temp,
+                column_config={
+                    "シラバス": st.column_config.LinkColumn(
+                        "シラバス",
+                        display_text="シラバスを表示",
+                    )
+                },
+            )
+        
+        st.write("#### 専門科目かつ社会工学　（１０単位以上）")
+        temp = df_schedule[(df_schedule['学位プログラム']=='社会工学関連科目') & (df_schedule['科目区分']!=0)]
+        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+        st.dataframe(
+                temp,
+                column_config={
+                    "シラバス": st.column_config.LinkColumn(
+                        "シラバス",
+                        display_text="シラバスを表示",
+                    )
+                },
+            )
+        st.write("#### 専門科目かつ社会工学以外　（０単位以上）")
+        temp = df_schedule[(df_schedule['学位プログラム']!='社会工学関連科目') & (df_schedule['科目区分']!=0)]
+        if not temp.empty:
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+            st.dataframe(
+                    temp,
+                    column_config={
+                        "シラバス": st.column_config.LinkColumn(
+                            "シラバス",
+                            display_text="シラバスを表示",
+                        )
+                    },
+                )
+        else:
+            st.write("該当する科目はありません。")
     else:
         st.error("データを先にアップロードして、推薦システムを実行してください。")

@@ -8,3 +8,4 @@ openpyxl>=3.1.0
 matplotlib-fontja
 streamlit>=1.25.0
 plotly>=5.0.0
+pulp>=2.7.0
