@@ -65,9 +65,22 @@ with tab1:
             else:
                 st.error("対応していないファイル形式です。"
                          )
+            
         submitted = st.form_submit_button("データアップロード")
         
         if submitted and report:
+            df = df[df['総合評価']!='履修中']
+            st.write("修正が必要な場合は、以下のテーブルを編集してください。")
+            report_df = st.data_editor(df)
+            st.session_state['report_df'] = report_df
+            st.success("データアップロード完了！")
+    
+    st.write("")
+    st.write("もしくは、仮想データを使用してください。")
+    with st.form("upload_form_2"):
+        submitted = st.form_submit_button("仮想データを使用")
+        if submitted:
+            df = pd.read_csv('成績データ.csv')
             df = df[df['総合評価']!='履修中']
             st.write("修正が必要な場合は、以下のテーブルを編集してください。")
             report_df = st.data_editor(df)
