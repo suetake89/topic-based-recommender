@@ -13,18 +13,26 @@ st.set_page_config(
 with st.sidebar:
     st.title("問題発見と解決")
     st.write("")
-    st.write("🔎大学院の授業を推薦するアプリです。")
+    st.write("🔎システム情報工学研究群の授業を推薦するアプリです。")
     st.write("")
-    st.write("🔎成績表から自身の興味があると思われるトピックを抽出し、それに基づいて推薦します。")
+    st.write("🔎タブ1：成績表データの入力")
     st.write("")
-    st.write("🔎スケジューリング機能もあります。")
+    st.write("🔎タブ2：興味があると思われるトピックに基づいて授業を推薦")
+    st.write("")
+    st.write("🔎タブ3：選好とトピックの特徴分析")
+    st.write("")
+    st.write("🔎タブ4：選択必修科目のおすすめスケジュール")
+    st.write("")
+    st.write("🔎タブ5：キーワードから授業を検索")
     st.write("")
     st.write("🔎気になった授業はすぐシラバスへ飛べるので是非面白そうな授業を探してみてください！")
+    st.write("")
+    st.write("※授業は2024年度")
     
 st.title("大学院授業推薦システム")
 
 # タブの作成
-tab1, tab2, tab3, tab4 = st.tabs(["データ入力", "最適化実行", "結果の可視化", '履修の一例'])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["1.データ入力", "2.推薦システム", "3.トピックの可視化", '4.おすすめスケジュール', "5.授業検索"])
 
 # タブ1: データ入力
 with tab1:
@@ -75,7 +83,9 @@ with tab2:
             st.write("#### 最適化結果")
             recommender = TopicBasedRecommender(st.session_state['report_df'], num_topics=num_topics)
             recommender.create_lda_model()
-            topic_keywords = recommender.get_topic_keywords()
+            keywords_list = recommender.get_keywords_list()
+            topic_keywords = recommender.get_topic_keywords(keywords_list)
+            recommender.assign_info_to_courses()
             recommender.assign_topic_to_courses()
             number_of_recommendations_by_topic = recommender.decide_number_of_recommendations_by_topic()
             
@@ -89,9 +99,9 @@ with tab2:
                 # カード風表示
                 st.markdown(
                     f"""
-                    <div style="padding: 1.5rem; background-color: #eaf7ff; border-radius: 10px; margin-bottom: 1rem">
-                        <h2 style="color: #007BFF; margin-top: 0; font-size: 30px;">トピック: {topic}</h2>
-                        <h4 style="color: #007BFF; margin-top: 0; font-size: 20px;">
+                    <div style="padding: 1.5rem; background-color: #DEEBF2; border-radius: 10px; margin-bottom: 1rem">
+                        <h2 style="color: #3e42b6; margin-top: 0; font-size: 30px;">トピック: {topic}</h2>
+                        <h4 style="color: #3e42b6; margin-top: 0; font-size: 20px;">
                             <strong>推定関心度：</strong>{recommender.user_profile_percent[topic]}％
                         </h4>
                     </div>
@@ -113,7 +123,7 @@ with tab2:
                 # トピック重要ワードと専門用語を囲む
                 st.markdown(
                     f"""
-                    <div style="padding: 1rem; background-color: #eaf7ff; color: #000000; border-radius: 10px; margin-top: 1rem;">
+                    <div style="padding: 1rem; background-color: #DEEBF2; color: #000000; border-radius: 10px; margin-top: 1rem;">
                         <p><strong>トピック重要ワード：</strong></p>
                         <p>{"、".join(keyword for keyword in topic_keywords[topic][0])}</p>
                         <p><strong>トピック専門用語：</strong></p>
@@ -126,7 +136,7 @@ with tab2:
                 #st.write(recommender.df_grad)
                 st.markdown(
                     f"""
-                    <div style="padding: 1rem; background-color: #eaf7ff; color: #000000; border-radius: 10px; margin-top: 1rem;">
+                    <div style="padding: 1rem; background-color: #DEEBF2; color: #000000; border-radius: 10px; margin-top: 1rem;">
                         <p><strong>このトピックはあなたが履修した以下の授業に基づいています：</strong></p>
                         <p>{"、".join(keyword for keyword in your_course)}</p>
                     </div>
@@ -163,7 +173,8 @@ with tab3:
             fig_grad = recommender.plot_topic_distribution_of_grad()
             st.plotly_chart(fig_grad)
             
-            topic_keywords =  recommender.get_topic_keywords()
+            keywords_list = recommender.get_keywords_list()
+            topic_keywords =  recommender.get_topic_keywords(keywords_list)
             
             st.write("## 各トピックの情報")
             for topic in range(recommender.num_topics):
@@ -174,7 +185,7 @@ with tab3:
                 # トピック重要ワードと専門用語を囲む
                 st.markdown(
                     f"""
-                    <div style="padding: 1rem; background-color: #eaf7ff; color: #000000; border-radius: 10px; margin-top: 1rem;">
+                    <div style="padding: 1rem; background-color: #DEEBF2; color: #000000; border-radius: 10px; margin-top: 1rem;">
                         <p style="font-size: 25px;"><strong>トピック: {topic}</strong></p>
                         <p><strong>トピック重要ワード：</strong></p>
                         <p>{"、".join(keyword for keyword in topic_keywords[topic][0])}</p>
@@ -257,9 +268,64 @@ with tab4:
             else:
                 st.write("該当する科目はありません。")
             st.markdown("")
-            st.markdown("*※時間割が被らないように選択されています。*")
-            st.markdown("*※卒業要件を満たすかは各自でもご確認ください。損害の責任は負いかねます。*")
+            st.info(
+                    """
+                    ※時間割が被らないように選択されています。
+                    卒業要件を満たすかは各自でもご確認ください。損害の責任は負いかねます。
+                    """
+                )
+
+
         else:
             st.write("すみません。まだ対応していません。")
     else:
         st.error("データを先にアップロードして、推薦システムを実行してください。")
+
+with tab5:
+    st.title("システム情報工学研究群・KDB")
+    st.write("")
+    report_df = pd.read_csv('成績データ.csv')
+    recommender = TopicBasedRecommender(report_df, num_topics=20) # 決定したら固定する
+    keywords_list = recommender.get_keywords_list()
+    recommender.assign_info_to_courses()
+    opt = OptimizeClasses(recommender.df_grad_courses)
+    m0, m1, m2, m3, m4, m5 = st.columns((1, 1, 1, 1, 1, 1))
+    proglam = m0.selectbox('学位プログラムを選択してください:', ['指定なし'] + opt.df['学位プログラム'].unique().tolist())
+    season = m1.selectbox('学期を選択してください:', ['指定なし'] + ['春', '秋', '春季休業中', '秋C春季休業中', '通年'])
+    module = m2.selectbox('モジュールを選択してください:', ['指定なし'] + ['A', 'B', 'C', '集中'])
+    week = m3.selectbox('曜日を選択してください:', ['指定なし'] + ['月', '火', '水', '木', '金'])
+    period = m4.selectbox('時限を選択してください:', ['指定なし'] + ['1', '2', '3', '4', '5', '6'])
+    keyword = m5.selectbox('キーワードを入力してください:', ['指定なし'] + keywords_list)
+    select_list = [proglam, season, module, week, period, keyword]
+    temp = opt.df.copy()
+    for i, select in enumerate(select_list):
+        if select != '指定なし':
+            if i == 0:
+                temp = temp[temp['学位プログラム']==select]
+            elif i in [1, 2, 3, 4]:
+                temp = temp[temp['時間割'].str.contains(select, na=False)]
+            else:
+                if sum(temp.apply(lambda x: select in x['キーワード'], axis=1)) != 0:
+                    temp = temp[temp.apply(lambda x: select in x['キーワード'], axis=1)]
+                else:
+                    temp = pd.DataFrame()
+    
+    if temp.empty:
+        st.write("該当する科目はありません。")
+    else:
+        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '科目区分名', 'キーワード', 'シラバス']]
+        st.dataframe(
+                temp,
+                column_config={
+                    "シラバス": st.column_config.LinkColumn(
+                        "シラバス",
+                        display_text="シラバスを表示",
+                    )
+                },
+            )
+    st.info(
+        """
+        ※こちらでは主に選択必修となる、研究群共通科目群を表示します。
+        [「大学院 履修方法・修了要件」はここから参照できます（2024年版）](https://www.tsukuba.ac.jp/education/g-courses-handbook/2024rishu.html)
+        """
+    )

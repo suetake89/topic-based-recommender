@@ -89,10 +89,8 @@ class TopicBasedRecommender():
         )
         print("\nユーザーの関心トピック分布:", self.user_profile)
         self.user_profile_percent = (self.user_profile / self.user_profile.sum() * 100).astype(int)
-
-    def get_topic_keywords(self):
-        # ===== トピックの重要キーワード =====（ここから変更）
-
+        
+    def get_keywords_list(self):
         # キーワード列のすべてのリストを結合
         all_keywords = []
         for keywords in self.df_combined['キーワード']:
@@ -107,7 +105,10 @@ class TopicBasedRecommender():
         # 出現頻度順に並び替え
         sorted_keywords = keyword_counts.most_common()
         keywords_only = [keyword for keyword, count in sorted_keywords]
+        return keywords_only
 
+    def get_topic_keywords(self, keywords_only):
+        # ===== トピックの重要キーワード =====
         # トピックごとの単語分布を取得
         def find_highest_topic_for_keyword(keyword, dictionary):
             highest_topic = None
@@ -133,19 +134,7 @@ class TopicBasedRecommender():
 
         return topic_keywords
 
-    def assign_topic_to_courses(self):
-
-        def return_most_relevant_topic_idx(doc):
-            corpus = self.dictionary.doc2bow(doc)
-            grad_topic_distribution = self.lda_model.get_document_topics(corpus, minimum_probability=0)
-            most_relevant_topic_idx = np.argmax([prob for _, prob in grad_topic_distribution], axis=0)
-            return most_relevant_topic_idx
-
-        def return_relevant_prob(doc):
-            corpus = self.dictionary.doc2bow(doc)
-            grad_topic_distribution = self.lda_model.get_document_topics(corpus, minimum_probability=0)
-            relevant_prob = np.max([prob for _, prob in grad_topic_distribution], axis=0)
-            return relevant_prob
+    def assign_info_to_courses(self):
 
         # ===== 関数定義 =====
         classification_rules_digit = {
@@ -209,7 +198,11 @@ class TopicBasedRecommender():
                 return "都市計画" if fourth_char in ['6', '7', '8'] else "理工学群共通"
 
             return "その他"
+
+        def return_syllabus_link(class_str):
+            return f'https://kdb.tsukuba.ac.jp/syllabi/2024/{class_str}/jpn'
             
+
 
         grad_subject_num_dict = (
               self.df_0.set_index('授業科目名')['科目番号'].astype(str).to_dict() |
@@ -228,21 +221,40 @@ class TopicBasedRecommender():
           )
 
         # '関連授業分類' カラムを追加して分類を適用
-        self.df_grad_courses['関連トピック'] = self.df_grad_courses['キーワード'].apply(return_most_relevant_topic_idx)
-        self.df_grad_courses['トピック選好'] = self.df_grad_courses['関連トピック'].apply(lambda x: self.user_profile_percent[x])
-        self.df_grad_courses['トピック確度'] = self.df_grad_courses['キーワード'].apply(return_relevant_prob)
-        self.df_grad_courses['推薦スコア'] = self.df_grad_courses['トピック選好'] * self.df_grad_courses['トピック確度']
         self.df_grad_courses['科目番号'] = self.df_grad_courses['授業科目名'].map(grad_subject_num_dict)
         self.df_grad_courses['時間割'] = self.df_grad_courses['授業科目名'].map(grad_subject_schedule)
-        self.df_grad_courses['単位数'] = self.df_grad_courses['授業科目名'].map(grad_subject_unit)
-        self.df_grad_courses['単位数'] = self.df_grad_courses['単位数'].apply(lambda x: int(x[0]))
+        self.df_grad_courses['単位数'] = self.df_grad_courses['授業科目名'].map(grad_subject_unit).apply(lambda x: int(x[0]))
         self.df_grad_courses['実施学期'] = self.df_grad_courses['時間割'].apply(lambda x: x.split(" ")[0])
         self.df_grad_courses['曜時限'] = self.df_grad_courses['時間割'].apply(lambda x: x.split(" ")[1])
         self.df_grad_courses['学位プログラム'] = self.df_grad_courses['科目番号'].apply(classify_graduate_course)
         self.df_grad_courses['科目区分'] = self.df_grad_courses['科目番号'].apply(classify_graduate_basis)
-        self.df_social_courses['関連トピック'] = self.df_social_courses['キーワード'].apply(return_most_relevant_topic_idx)
+        self.df_grad_courses['科目区分名'] =self.df_grad_courses['科目区分'].apply(lambda x: '専門科目' if x==1 else '専門基礎科目')
+        self.df_grad_courses['シラバス'] = self.df_grad_courses['科目番号'].apply(return_syllabus_link)
+
         self.df_social_courses['科目番号'] = self.df_social_courses['授業科目名'].map(social_subject_num_dict)
         self.df_social_courses['主専攻'] = self.df_social_courses['科目番号'].apply(classify_social_course)
+        self.df_social_courses['シラバス'] = self.df_social_courses['科目番号'].apply(return_syllabus_link)
+        
+    def assign_topic_to_courses(self):
+        
+        def return_most_relevant_topic_idx(doc):
+            corpus = self.dictionary.doc2bow(doc)
+            grad_topic_distribution = self.lda_model.get_document_topics(corpus, minimum_probability=0)
+            most_relevant_topic_idx = np.argmax([prob for _, prob in grad_topic_distribution], axis=0)
+            return most_relevant_topic_idx
+
+        def return_relevant_prob(doc):
+            corpus = self.dictionary.doc2bow(doc)
+            grad_topic_distribution = self.lda_model.get_document_topics(corpus, minimum_probability=0)
+            relevant_prob = np.max([prob for _, prob in grad_topic_distribution], axis=0)
+            return relevant_prob
+        
+        self.df_grad_courses['関連トピック'] = self.df_grad_courses['キーワード'].apply(return_most_relevant_topic_idx)
+        self.df_grad_courses['トピック選好'] = self.df_grad_courses['関連トピック'].apply(lambda x: self.user_profile_percent[x])
+        self.df_grad_courses['トピック確度'] = self.df_grad_courses['キーワード'].apply(return_relevant_prob)
+        self.df_grad_courses['推薦スコア'] = self.df_grad_courses['トピック選好'] * self.df_grad_courses['トピック確度']
+        self.df_grad_courses['おすすめ度'] = self.df_grad_courses['推薦スコア'].astype(int)
+        self.df_social_courses['関連トピック'] = self.df_social_courses['キーワード'].apply(return_most_relevant_topic_idx)
         self.df_grad = self.df_grad.merge(self.df_social_courses[['授業科目名', '関連トピック']], left_on='科目名', right_on='授業科目名', how='left')
 
     def decide_number_of_recommendations_by_topic(self, total_n_recommendations = 50):
@@ -424,8 +436,6 @@ class OptimizeClasses():
                 if str(period) in week_period:
                     result.append(period)
                 self.df.loc[index, 'period'] = str(result)
-
-        self.df = self.df.sort_values('推薦スコア', ascending=False)
     
     def optimize(self):
         # 問題を宣言
@@ -476,18 +486,14 @@ class OptimizeClasses():
 
         print("Status:", pulp.LpStatus[status])
         print("Result:")
-        df_took_classes = self.df[self.df['授業科目名'].apply(xx) == 1][['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', '科目区分', '関連トピック', '推薦スコア']]
         
-        def return_syllabus_link(class_str):
-            return f'https://kdb.tsukuba.ac.jp/syllabi/2024/{class_str}/jpn'
-        
-        df_took_classes['おすすめ度'] = df_took_classes['推薦スコア'].astype(int)
-        df_took_classes['シラバス'] = df_took_classes['科目番号'].apply(return_syllabus_link)
+        if '関連トピック' in self.df.columns:
+            df_took_classes = self.df[self.df['授業科目名'].apply(xx) == 1][['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', "科目区分", '科目区分名', '関連トピック', '推薦スコア', 'シラバス', 'おすすめ度']]
+        else:
+            df_took_classes = self.df[self.df['授業科目名'].apply(xx) == 1][['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', "科目区分", '科目区分名', 'シラバス']]
+
         
         return df_took_classes
-        for classification in ['専門基礎科目', '専門科目']:
-            for program in ['社会工学', '社会工学以外']:
-                temp = df_took_classes[(df_took_classes['学位プログラム'] == classification) & (df_took_classes['科目区分'] == program)]
 
         #print('専門基礎科目', '社会工学')
         
@@ -496,7 +502,9 @@ if __name__ == '__main__':
     df_grad = pd.read_csv("成績データ.csv", encoding="utf-8")
     recommender = TopicBasedRecommender(df_grad, num_topics=30)
     recommender.create_lda_model()
-    topic_keywords = recommender.get_topic_keywords()
+    keywords_list = recommender.get_keywords_list()
+    topic_keywords = recommender.get_topic_keywords(keywords_list)
+    recommender.assign_info_to_courses()
     recommender.assign_topic_to_courses()
     number_of_recommendations_by_topic = recommender.decide_number_of_recommendations_by_topic()
 
