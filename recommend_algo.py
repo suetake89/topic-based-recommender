@@ -284,7 +284,7 @@ class TopicBasedRecommender():
         temp = pd.concat([self.df_0, self.df_2]).merge(self.df_grad_courses[['授業科目名', 'キーワード', 'トピック', 'トピック確度']], on='授業科目名', how='left')
         temp = temp[temp['トピック']==topic]
 
-        return temp[['科目番号', '授業科目名', '単位数', '標準履修年次', '時間割', '担当教員', 'キーワード', 'シラバス']], your_course
+        return temp[['科目番号', '授業科目名', '単位数', '標準履修年次', '時間割', '担当教員', '成績評価方法', 'シラバス']], your_course
 
     def plot_topic_distribution_of_grad(self):
         # 'トピック番号' と '関連授業' ごとに出現回数をカウント
