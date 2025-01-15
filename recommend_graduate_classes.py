@@ -69,9 +69,11 @@ with tab1:
 # タブ2: 最適化実行
 with tab2:
     if 'report_df' in st.session_state:
+        input_value = st.text_input("トピック数に入力してください:", "20")
+        num_topics = int(input_value) if input_value else 20
         if st.button("大学院授業の推薦を実行"):
             st.write("#### 最適化結果")
-            recommender = TopicBasedRecommender(st.session_state['report_df'], num_topics=30)
+            recommender = TopicBasedRecommender(st.session_state['report_df'], num_topics=num_topics)
             recommender.create_lda_model()
             topic_keywords = recommender.get_topic_keywords()
             recommender.assign_topic_to_courses()
@@ -87,7 +89,7 @@ with tab2:
                 # カード風表示
                 st.markdown(
                     f"""
-                    <div style="padding: 1.5rem; background-color: #f9f9f9; border-radius: 10px; margin-bottom: 1rem">
+                    <div style="padding: 1.5rem; background-color: #eaf7ff; border-radius: 10px; margin-bottom: 1rem">
                         <h2 style="color: #007BFF; margin-top: 0; font-size: 30px;">トピック: {topic}</h2>
                         <h4 style="color: #007BFF; margin-top: 0; font-size: 20px;">
                             <strong>推定関心度：</strong>{recommender.user_profile_percent[topic]}％
@@ -111,7 +113,7 @@ with tab2:
                 # トピック重要ワードと専門用語を囲む
                 st.markdown(
                     f"""
-                    <div style="padding: 1rem; background-color: #eaf7ff; border-radius: 10px; margin-top: 1rem;">
+                    <div style="padding: 1rem; background-color: #eaf7ff; color: #000000; border-radius: 10px; margin-top: 1rem;">
                         <p><strong>トピック重要ワード：</strong></p>
                         <p>{"、".join(keyword for keyword in topic_keywords[topic][0])}</p>
                         <p><strong>トピック専門用語：</strong></p>
@@ -124,7 +126,7 @@ with tab2:
                 #st.write(recommender.df_grad)
                 st.markdown(
                     f"""
-                    <div style="padding: 1rem; background-color: #eaf7ff; border-radius: 10px; margin-top: 1rem;">
+                    <div style="padding: 1rem; background-color: #eaf7ff; color: #000000; border-radius: 10px; margin-top: 1rem;">
                         <p><strong>このトピックはあなたが履修した以下の授業に基づいています：</strong></p>
                         <p>{"、".join(keyword for keyword in your_course)}</p>
                     </div>
@@ -172,7 +174,7 @@ with tab3:
                 # トピック重要ワードと専門用語を囲む
                 st.markdown(
                     f"""
-                    <div style="padding: 1rem; background-color: #eaf7ff; border-radius: 10px; margin-top: 1rem;">
+                    <div style="padding: 1rem; background-color: #eaf7ff; color: #000000; border-radius: 10px; margin-top: 1rem;">
                         <p style="font-size: 25px;"><strong>トピック: {topic}</strong></p>
                         <p><strong>トピック重要ワード：</strong></p>
                         <p>{"、".join(keyword for keyword in topic_keywords[topic][0])}</p>

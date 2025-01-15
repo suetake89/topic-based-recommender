@@ -298,6 +298,13 @@ class TopicBasedRecommender():
                 dtick=1,      # X軸の間隔
                 showgrid=True # グリッドを表示
             ),
+            legend=dict(
+                #orientation="h",        # 横並びのレジェンド
+                yanchor="top",          # レジェンドの垂直方向のアンカー
+                y=-0.2,                 # グラフ下部に配置（値を調整して位置を変更）
+                xanchor="center",       # レジェンドの水平方向のアンカー
+                #x=0.5                   # グラフの中央に配置
+            ),
             title="学位プログラムごとの各トピックの出現回数",
         )
 
@@ -332,7 +339,15 @@ class TopicBasedRecommender():
                 showgrid=True # グリッドを表示
             ),
             title="主専攻ごとの各トピックの出現回数",
+            legend=dict(
+                #orientation="h",        # 横並びのレジェンド
+                yanchor="top",          # レジェンドの垂直方向のアンカー
+                y=-0.2,                 # グラフ下部に配置（値を調整して位置を変更）
+                xanchor="center",       # レジェンドの水平方向のアンカー
+                #x=0.5                   # グラフの中央に配置
+            ),
         )
+
 
         return fig
 
