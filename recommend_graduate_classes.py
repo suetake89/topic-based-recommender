@@ -90,9 +90,10 @@ with tab1:
 # タブ2: 最適化実行
 with tab2:
     if 'report_df' in st.session_state:
-        input_value = st.text_input("トピック数に入力してください:", "20")
-        num_topics = int(input_value) if input_value else 20
+        #input_value = st.text_input("トピック数に入力してください:", "15")
+        #num_topics = int(input_value) if input_value else 15
         if st.button("大学院授業の推薦を実行"):
+            num_topics = 15
             st.write("#### 最適化結果")
             recommender = TopicBasedRecommender(st.session_state['report_df'], num_topics=num_topics)
             recommender.create_lda_model()
@@ -104,7 +105,8 @@ with tab2:
             
             st.session_state['recommender'] = recommender
             
-            for topic, n_r in number_of_recommendations_by_topic:
+            for topic_id, n_r in number_of_recommendations_by_topic:
+                topic = recommender._number_to_char(topic_id)
                 if n_r == 0:
                     continue
                 temp, your_course = recommender.execute_recommendation(topic)
@@ -115,7 +117,7 @@ with tab2:
                     <div style="padding: 1.5rem; background-color: #DEEBF2; border-radius: 10px; margin-bottom: 1rem">
                         <h2 style="color: #3e42b6; margin-top: 0; font-size: 30px;">トピック: {topic}</h2>
                         <h4 style="color: #3e42b6; margin-top: 0; font-size: 20px;">
-                            <strong>推定関心度：</strong>{recommender.user_profile_percent[topic]}％
+                            <strong>推定関心度：</strong>{recommender.user_profile_percent[topic_id]}％
                         </h4>
                     </div>
                     """,
@@ -138,9 +140,9 @@ with tab2:
                     f"""
                     <div style="padding: 1rem; background-color: #DEEBF2; color: #000000; border-radius: 10px; margin-top: 1rem;">
                         <p><strong>トピック重要ワード：</strong></p>
-                        <p>{"、".join(keyword for keyword in topic_keywords[topic][0])}</p>
+                        <p>{"、".join(keyword for keyword in topic_keywords[topic_id][0])}</p>
                         <p><strong>トピック専門用語：</strong></p>
-                        <p>{"、".join(keyword for keyword in topic_keywords[topic][1])}</p>
+                        <p>{"、".join(keyword for keyword in topic_keywords[topic_id][1])}</p>
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -165,49 +167,80 @@ with tab2:
 
 # タブ3: 結果の可視化
 with tab3:
-    if 'report_df' in st.session_state and 'recommender' in st.session_state:
-        if st.button("推薦システムを可視化"):    
-            recommender = st.session_state['recommender']
-            
-            st.title("トピック分布の可視化")
-            st.write("")
-            # グラフ1
-            st.subheader("ユーザー選好のトピック分布")
-            fig_user = recommender.plot_topic_distribution_of_user_profile()
-            st.plotly_chart(fig_user)
+    if 'report_df' in st.session_state and 'recommender' in st.session_state:  
+        recommender = st.session_state['recommender']
+        
+        st.title("トピック分布の可視化")
+        st.write("")
+        # グラフ1
+        st.subheader("ユーザー選好のトピック分布")
+        fig_user = recommender.plot_topic_distribution_of_user_profile()
+        st.plotly_chart(fig_user)
 
-            # グラフ2
-            st.subheader("主専攻ごとのトピック分布")
-            fig_social = recommender.plot_topic_distribution_of_social()
-            st.plotly_chart(fig_social)
+        # グラフ2
+        st.subheader("主専攻ごとのトピック分布")
+        fig_social = recommender.plot_topic_distribution_of_social()
+        st.plotly_chart(fig_social)
 
-            # グラフ3
-            st.subheader("学位プログラムごとのトピック分布")
-            fig_grad = recommender.plot_topic_distribution_of_grad()
-            st.plotly_chart(fig_grad)
-            
-            keywords_list = recommender.get_keywords_list()
-            topic_keywords =  recommender.get_topic_keywords(keywords_list)
-            
-            st.write("## 各トピックの情報")
-            for topic in range(recommender.num_topics):
-                #if n_r == 0:
-                #    continue
-                temp, your_course = recommender.execute_recommendation(topic)
-
-                # トピック重要ワードと専門用語を囲む
-                st.markdown(
-                    f"""
-                    <div style="padding: 1rem; background-color: #DEEBF2; color: #000000; border-radius: 10px; margin-top: 1rem;">
-                        <p style="font-size: 25px;"><strong>トピック: {topic}</strong></p>
-                        <p><strong>トピック重要ワード：</strong></p>
-                        <p>{"、".join(keyword for keyword in topic_keywords[topic][0])}</p>
-                        <p><strong>トピック専門用語：</strong></p>
-                        <p>{"、".join(keyword for keyword in topic_keywords[topic][1])}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
+        # グラフ3
+        st.subheader("学位プログラムごとのトピック分布")
+        fig_grad = recommender.plot_topic_distribution_of_grad()
+        st.plotly_chart(fig_grad)
+        
+        keywords_list = recommender.get_keywords_list()
+        topic_keywords =  recommender.get_topic_keywords(keywords_list)
+        
+        st.write("## 各トピックの授業一覧")
+        topic_list = [recommender._number_to_char(topic_id) for topic_id in range(recommender.num_topics)]
+        option = st.selectbox("トピックを選択してください。", topic_list)
+        
+        st.write("#### 学類の授業")
+        temp = recommender.df_social_courses[recommender.df_social_courses['トピック']==option]
+        temp = temp[['科目番号', '授業科目名', '主専攻', 'キーワード', 'シラバス']]
+        # シラバスデータフレーム
+        st.dataframe(
+            temp,
+            column_config={
+                "シラバス": st.column_config.LinkColumn(
+                    "シラバス",
+                    display_text="シラバスを表示",
                 )
+            },
+        )
+        st.write("#### 院の授業")
+        temp = recommender.df_grad_courses[recommender.df_grad_courses['トピック']==option]
+        temp = temp[['科目番号', '授業科目名', '学位プログラム', 'キーワード', 'シラバス']]
+        # シラバスデータフレーム
+        st.dataframe(
+            temp,
+            column_config={
+                "シラバス": st.column_config.LinkColumn(
+                    "シラバス",
+                    display_text="シラバスを表示",
+                )
+            },
+        )
+    
+        st.write("## 各トピックの情報")
+        for topic_id in range(recommender.num_topics):
+            topic = recommender._number_to_char(topic_id)
+            #if n_r == 0:
+            #    continue
+            temp, your_course = recommender.execute_recommendation(topic)
+
+            # トピック重要ワードと専門用語を囲む
+            st.markdown(
+                f"""
+                <div style="padding: 1rem; background-color: #DEEBF2; color: #000000; border-radius: 10px; margin-top: 1rem;">
+                    <p style="font-size: 25px;"><strong>トピック: {topic}</strong></p>
+                    <p><strong>トピック重要ワード：</strong></p>
+                    <p>{"、".join(keyword for keyword in topic_keywords[topic_id][0])}</p>
+                    <p><strong>トピック専門用語：</strong></p>
+                    <p>{"、".join(keyword for keyword in topic_keywords[topic_id][1])}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
     else:
         st.error("データを先にアップロードして、推薦システムを実行してください。")
         
@@ -229,7 +262,7 @@ with tab4:
             
             st.write("#### 専門基礎科目かつ社会工学　（６単位以上）")
             temp = df_schedule[(df_schedule['学位プログラム']=='社会工学関連科目') & (df_schedule['科目区分']==0)]
-            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', 'トピック', 'おすすめ度', 'シラバス']]
             st.dataframe(
                     temp,
                     column_config={
@@ -242,7 +275,7 @@ with tab4:
             
             st.write("#### 専門基礎科目かつ社会工学以外　（２単位以上）")
             temp = df_schedule[(df_schedule['学位プログラム']!='社会工学関連科目') & (df_schedule['科目区分']==0)]
-            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', 'トピック', 'おすすめ度', 'シラバス']]
             st.dataframe(
                     temp,
                     column_config={
@@ -255,7 +288,7 @@ with tab4:
             
             st.write("#### 専門科目かつ社会工学　（１０単位以上）")
             temp = df_schedule[(df_schedule['学位プログラム']=='社会工学関連科目') & (df_schedule['科目区分']!=0)]
-            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', 'トピック', 'おすすめ度', 'シラバス']]
             st.dataframe(
                     temp,
                     column_config={
@@ -268,7 +301,7 @@ with tab4:
             st.write("#### 専門科目かつ社会工学以外　（０単位以上）")
             temp = df_schedule[(df_schedule['学位プログラム']!='社会工学関連科目') & (df_schedule['科目区分']!=0)]
             if not temp.empty:
-                temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '関連トピック', 'おすすめ度', 'シラバス']]
+                temp = temp[['科目番号', '授業科目名', '時間割', '単位数', 'トピック', 'おすすめ度', 'シラバス']]
                 st.dataframe(
                         temp,
                         column_config={
@@ -297,8 +330,12 @@ with tab4:
 with tab5:
     st.title("システム情報工学研究群・KDB")
     st.write("")
+    if 'recommender' in st.session_state:
+        recommender = st.session_state['recommender']
+    else:
+        report_df = pd.read_csv('成績データ.csv')
+        recommender = TopicBasedRecommender(report_df, num_topics=15)
     report_df = pd.read_csv('成績データ.csv')
-    recommender = TopicBasedRecommender(report_df, num_topics=20) # 決定したら固定する
     keywords_list = recommender.get_keywords_list()
     recommender.assign_info_to_courses()
     opt = OptimizeClasses(recommender.df_grad_courses)

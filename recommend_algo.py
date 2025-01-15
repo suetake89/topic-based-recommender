@@ -15,7 +15,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 class TopicBasedRecommender():
-    def __init__(self, df_grad, num_topics=30):
+    def __init__(self, df_grad, num_topics=15):
         self.df_grad = df_grad
 
         # ===== データ読み込み =====
@@ -111,17 +111,17 @@ class TopicBasedRecommender():
         # ===== トピックの重要キーワード =====
         # トピックごとの単語分布を取得
         def find_highest_topic_for_keyword(keyword, dictionary):
-            highest_topic = None
+            highest_topic_id = None
             highest_probability = 0
 
             # 各トピックをループして確率を確認
             for topic_id, topic_terms in self.lda_model.show_topics(formatted=False, num_words=len(dictionary)):
                 for term_id, probability in topic_terms:
                     if term_id == keyword and probability > highest_probability:
-                        highest_topic = topic_id
+                        highest_topic_id = topic_id
                         highest_probability = probability
 
-            return highest_topic, highest_probability
+            return highest_topic_id, highest_probability
 
         topic_keywords = [[[], []] for i in range(self.num_topics)]
         for topic_id in range(self.num_topics):
@@ -129,8 +129,8 @@ class TopicBasedRecommender():
             topic_keywords[topic_id][0] = [word for word, _ in top_words]
 
         for keyword in keywords_only:
-            highest_topic, probability = find_highest_topic_for_keyword(keyword, self.dictionary)
-            topic_keywords[highest_topic][1].append(keyword)
+            highest_topic_id, probability = find_highest_topic_for_keyword(keyword, self.dictionary)
+            topic_keywords[highest_topic_id][1].append(keyword)
 
         return topic_keywords
 
@@ -202,13 +202,13 @@ class TopicBasedRecommender():
         def return_syllabus_link(class_str):
             return f'https://kdb.tsukuba.ac.jp/syllabi/2024/{class_str}/jpn'
             
-
-
         grad_subject_num_dict = (
               self.df_0.set_index('授業科目名')['科目番号'].astype(str).to_dict() |
               self.df_2.set_index('授業科目名')['科目番号'].astype(str).to_dict()
           )
         social_subject_num_dict = self.df_1.set_index('授業科目名')['科目番号'].astype(str).to_dict()
+        
+        social_subject_overview = self.df_1.set_index('授業科目名')['授業概要'].astype(str).to_dict()
 
         grad_subject_schedule = (
               self.df_0.set_index('授業科目名')['時間割'].astype(str).to_dict() |
@@ -223,6 +223,7 @@ class TopicBasedRecommender():
         # '関連授業分類' カラムを追加して分類を適用
         self.df_grad_courses['科目番号'] = self.df_grad_courses['授業科目名'].map(grad_subject_num_dict)
         self.df_grad_courses['時間割'] = self.df_grad_courses['授業科目名'].map(grad_subject_schedule)
+        
         self.df_grad_courses['単位数'] = self.df_grad_courses['授業科目名'].map(grad_subject_unit).apply(lambda x: int(x[0]))
         self.df_grad_courses['実施学期'] = self.df_grad_courses['時間割'].apply(lambda x: x.split(" ")[0])
         self.df_grad_courses['曜時限'] = self.df_grad_courses['時間割'].apply(lambda x: x.split(" ")[1])
@@ -233,7 +234,19 @@ class TopicBasedRecommender():
 
         self.df_social_courses['科目番号'] = self.df_social_courses['授業科目名'].map(social_subject_num_dict)
         self.df_social_courses['主専攻'] = self.df_social_courses['科目番号'].apply(classify_social_course)
+        self.df_social_courses['授業概要'] = self.df_social_courses['授業科目名'].map(social_subject_overview)
         self.df_social_courses['シラバス'] = self.df_social_courses['科目番号'].apply(return_syllabus_link)
+    
+    def _number_to_char(self, number):
+            if number < 0:
+                raise ValueError("The number must be non-negative.")
+
+            result = []
+            while number >= 0:
+                result.append(chr(ord('A') + number % 26))
+                number = number // 26 - 1
+
+            return ''.join(reversed(result))
         
     def assign_topic_to_courses(self):
         
@@ -250,12 +263,14 @@ class TopicBasedRecommender():
             return relevant_prob
         
         self.df_grad_courses['関連トピック'] = self.df_grad_courses['キーワード'].apply(return_most_relevant_topic_idx)
+        self.df_grad_courses['トピック'] = self.df_grad_courses['関連トピック'].apply(self._number_to_char)
         self.df_grad_courses['トピック選好'] = self.df_grad_courses['関連トピック'].apply(lambda x: self.user_profile_percent[x])
         self.df_grad_courses['トピック確度'] = self.df_grad_courses['キーワード'].apply(return_relevant_prob)
         self.df_grad_courses['推薦スコア'] = self.df_grad_courses['トピック選好'] * self.df_grad_courses['トピック確度']
         self.df_grad_courses['おすすめ度'] = self.df_grad_courses['推薦スコア'].astype(int)
         self.df_social_courses['関連トピック'] = self.df_social_courses['キーワード'].apply(return_most_relevant_topic_idx)
-        self.df_grad = self.df_grad.merge(self.df_social_courses[['授業科目名', '関連トピック']], left_on='科目名', right_on='授業科目名', how='left')
+        self.df_social_courses['トピック'] = self.df_social_courses['関連トピック'].apply(self._number_to_char)
+        self.df_grad = self.df_grad.merge(self.df_social_courses[['授業科目名', 'トピック']], left_on='科目名', right_on='授業科目名', how='left')
 
     def decide_number_of_recommendations_by_topic(self, total_n_recommendations = 50):
         number_of_recommendations_by_topic = [math.floor(i*total_n_recommendations) for i in self.user_profile]
@@ -265,15 +280,15 @@ class TopicBasedRecommender():
 
     # ===== 大学院授業の推薦 =====
     def execute_recommendation(self, topic):
-        your_course = self.df_grad[self.df_grad['関連トピック']==topic]['科目名'].tolist()
-        temp = pd.concat([self.df_0, self.df_2]).merge(self.df_grad_courses[['授業科目名', 'キーワード', '関連トピック', 'トピック確度']], on='授業科目名', how='left')
-        temp = temp[temp['関連トピック']==topic]
+        your_course = self.df_grad[self.df_grad['トピック']==topic]['科目名'].tolist()
+        temp = pd.concat([self.df_0, self.df_2]).merge(self.df_grad_courses[['授業科目名', 'キーワード', 'トピック', 'トピック確度']], on='授業科目名', how='left')
+        temp = temp[temp['トピック']==topic]
 
         return temp[['科目番号', '授業科目名', '単位数', '標準履修年次', '時間割', '担当教員', '成績評価方法', 'シラバス']], your_course
 
     def plot_topic_distribution_of_grad(self):
         # 'トピック番号' と '関連授業' ごとに出現回数をカウント
-        df_topic_counts = self.df_grad_courses.groupby(['関連トピック', '学位プログラム']).size().reset_index(name='出現回数')
+        df_topic_counts = self.df_grad_courses.groupby(['トピック', '学位プログラム']).size().reset_index(name='出現回数')
 
         classification_rules_digit = {
             '0': '共通',
@@ -286,22 +301,23 @@ class TopicBasedRecommender():
             '7': 'エンパワーメント情報学関連科目'
         }
 
-        for topic in range(self.num_topics):
+        for topic_id in range(self.num_topics):
+            topic = self._number_to_char(topic_id)
             for classify_course in classification_rules_digit.values():
-                if df_topic_counts[(df_topic_counts['関連トピック'] == topic) & (df_topic_counts['学位プログラム'] == classify_course)].empty:
+                if df_topic_counts[(df_topic_counts['トピック'] == topic) & (df_topic_counts['学位プログラム'] == classify_course)].empty:
                     df_topic_counts = pd.concat([
                         df_topic_counts,
-                        pd.DataFrame({'関連トピック': [topic], '学位プログラム': [classify_course], '出現回数': [0]})
+                        pd.DataFrame({'トピック': [topic], '学位プログラム': [classify_course], '出現回数': [0]})
                     ], ignore_index=True)
-        df_topic_counts = df_topic_counts.sort_values(by=['関連トピック', '学位プログラム'])
+        df_topic_counts = df_topic_counts.sort_values(by=['トピック', '学位プログラム'])
 
         # ===== 可視化 =====
         fig = px.line(df_topic_counts,
-                      x='関連トピック',
+                      x='トピック',
                       y='出現回数',
                       color='学位プログラム',
                       title='学位プログラムごとの各トピックの出現回数',
-                      labels={'関連トピック': 'トピック', '出現回数': '出現回数', '学位プログラム': '学位プログラム'})
+                      labels={'トピック': 'トピック', '出現回数': '出現回数', '学位プログラム': '学位プログラム'})
 
         # グラフを表示
         fig.update_layout(
@@ -324,24 +340,25 @@ class TopicBasedRecommender():
 
     def plot_topic_distribution_of_social(self):
         # 'トピック番号' と '関連授業' ごとに出現回数をカウント
-        df_topic_counts = self.df_social_courses.groupby(['関連トピック', '主専攻']).size().reset_index(name='出現回数')
+        df_topic_counts = self.df_social_courses.groupby(['トピック', '主専攻']).size().reset_index(name='出現回数')
 
-        for topic in range(self.num_topics):
+        for topic_id in range(self.num_topics):
+            topic = self._number_to_char(topic_id)
             for classify_course in ["理工学群共通", "社会経済システム", "経営工学", "都市計画", "その他"]:
-                if df_topic_counts[(df_topic_counts['関連トピック'] == topic) & (df_topic_counts['主専攻'] == classify_course)].empty:
+                if df_topic_counts[(df_topic_counts['トピック'] == topic) & (df_topic_counts['主専攻'] == classify_course)].empty:
                     df_topic_counts = pd.concat([
                         df_topic_counts,
-                        pd.DataFrame({'関連トピック': [topic], '主専攻': [classify_course], '出現回数': [0]})
+                        pd.DataFrame({'トピック': [topic], '主専攻': [classify_course], '出現回数': [0]})
                     ], ignore_index=True)
-        df_topic_counts = df_topic_counts.sort_values(by=['関連トピック', '主専攻'])
+        df_topic_counts = df_topic_counts.sort_values(by=['トピック', '主専攻'])
 
         # ===== 可視化 =====
         fig = px.line(df_topic_counts,
-                      x='関連トピック',
+                      x='トピック',
                       y='出現回数',
                       color='主専攻',
                       title='主専攻ごとの各トピックの出現回数',
-                      labels={'関連トピック': 'トピック', '出現回数': '出現回数', '主専攻': '主専攻'})
+                      labels={'トピック': 'トピック', '出現回数': '出現回数', '主専攻': '主専攻'})
 
         # グラフを表示
         fig.update_layout(
@@ -367,7 +384,7 @@ class TopicBasedRecommender():
         self.user_profile_percent
 
         # データ
-        x_values = list(range(self.num_topics))
+        x_values = [self._number_to_char(topic_id) for topic_id in range(self.num_topics)]
         y_values = self.user_profile_percent
 
         # 棒グラフの作成
@@ -487,16 +504,15 @@ class OptimizeClasses():
         print("Status:", pulp.LpStatus[status])
         print("Result:")
         
-        if '関連トピック' in self.df.columns:
-            df_took_classes = self.df[self.df['授業科目名'].apply(xx) == 1][['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', "科目区分", '科目区分名', '関連トピック', '推薦スコア', 'シラバス', 'おすすめ度']]
+        if 'トピック' in self.df.columns:
+            df_took_classes = self.df[self.df['授業科目名'].apply(xx) == 1][['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', "科目区分", '科目区分名', 'トピック', '推薦スコア', 'シラバス', 'おすすめ度']]
         else:
             df_took_classes = self.df[self.df['授業科目名'].apply(xx) == 1][['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', "科目区分", '科目区分名', 'シラバス']]
 
         
         return df_took_classes
 
-        #print('専門基礎科目', '社会工学')
-        
+        #print('専門基礎科目', '社会工学')       
 
 if __name__ == '__main__':
     df_grad = pd.read_csv("成績データ.csv", encoding="utf-8")
@@ -525,7 +541,7 @@ if __name__ == '__main__':
         print("このトピックはあなたが履修した以下の授業に基づいています: ", end='')
         print("、".join(class_ for class_ in your_course))
         print()
-        
+
     df = recommender.df_grad_courses
     opt = OptimizeClasses(df)
     print(opt.optimize())
