@@ -36,56 +36,57 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["1.データ入力", "2.推薦システ�
 
 # タブ1: データ入力
 with tab1:
-    st.info(
-        """
-        [このtwinsのリンク](https://twins.tsukuba.ac.jp/campusweb/campusportal.do?page=main&tabId=si)から成績表をダウンロードできます。  
-        一番下までスクロールし、「ダウンロード」をクリックしてください。  
-        ファイル形式と文字コードは初期設定のままで構いません。  
-        """
-    )
-    with st.form("upload_form"):
-        # ファイルアップロード
-        report = st.file_uploader(
-            "成績表をアップロード",
-            type=['csv', 'xlsx', 'xls'],  # 受け付けるファイルタイプ
-            help="CSVファイルまたはExcelファイル（.xlsx, .xls）のみアップロード可能。最大200MB"
+    if st.checkbox('こちらのサイトで起こった損害を製作者は負いかねますのでご了承ください。'):
+        st.info(
+            """
+            [このtwinsのリンク](https://twins.tsukuba.ac.jp/campusweb/campusportal.do?page=main&tabId=si)から成績表をダウンロードできます。  
+            一番下までスクロールし、「ダウンロード」をクリックしてください。  
+            ファイル形式と文字コードは初期設定のままで構いません。  
+            """
         )
+        with st.form("upload_form"):
+            # ファイルアップロード
+            report = st.file_uploader(
+                "成績表をアップロード",
+                type=['csv', 'xlsx', 'xls'],  # 受け付けるファイルタイプ
+                help="CSVファイルまたはExcelファイル（.xlsx, .xls）のみアップロード可能。最大200MB"
+            )
 
-        # アップロードされた場合の処理
-        if report is not None:
-            # ファイルタイプのチェック
-            if report.name.endswith('.csv'):
-                st.write("CSVファイルがアップロードされました。")
-                df = pd.read_csv(report)
+            # アップロードされた場合の処理
+            if report is not None:
+                # ファイルタイプのチェック
+                if report.name.endswith('.csv'):
+                    st.write("CSVファイルがアップロードされました。")
+                    df = pd.read_csv(report)
 
-            elif report.name.endswith(('.xlsx', '.xls')):
-                st.write("Excelファイルがアップロードされました。")
-                df = pd.read_excel(report)
+                elif report.name.endswith(('.xlsx', '.xls')):
+                    st.write("Excelファイルがアップロードされました。")
+                    df = pd.read_excel(report)
 
-            else:
-                st.error("対応していないファイル形式です。"
-                         )
+                else:
+                    st.error("対応していないファイル形式です。"
+                            )
+                
+            submitted = st.form_submit_button("データアップロード")
             
-        submitted = st.form_submit_button("データアップロード")
+            if submitted and report:
+                df = df[df['総合評価']!='履修中']
+                st.write("修正が必要な場合は、以下のテーブルを編集してください。")
+                report_df = st.data_editor(df)
+                st.session_state['report_df'] = report_df
+                st.success("データアップロード完了！")
         
-        if submitted and report:
-            df = df[df['総合評価']!='履修中']
-            st.write("修正が必要な場合は、以下のテーブルを編集してください。")
-            report_df = st.data_editor(df)
-            st.session_state['report_df'] = report_df
-            st.success("データアップロード完了！")
-    
-    st.write("")
-    st.write("もしくは、仮想データを使用してください。")
-    with st.form("upload_form_2"):
-        submitted = st.form_submit_button("仮想データを使用")
-        if submitted:
-            df = pd.read_csv('成績データ.csv')
-            df = df[df['総合評価']!='履修中']
-            st.write("修正が必要な場合は、以下のテーブルを編集してください。")
-            report_df = st.data_editor(df)
-            st.session_state['report_df'] = report_df
-            st.success("データアップロード完了！")
+        st.write("")
+        st.write("もしくは、仮想データを使用してください。")
+        with st.form("upload_form_2"):
+            submitted = st.form_submit_button("仮想データを使用")
+            if submitted:
+                df = pd.read_csv('成績データ.csv')
+                df = df[df['総合評価']!='履修中']
+                st.write("修正が必要な場合は、以下のテーブルを編集してください。")
+                report_df = st.data_editor(df)
+                st.session_state['report_df'] = report_df
+                st.success("データアップロード完了！")
 
 # タブ2: 最適化実行
 with tab2:
@@ -328,54 +329,55 @@ with tab4:
         st.error("データを先にアップロードして、推薦システムを実行してください。")
 
 with tab5:
-    st.title("システム情報工学研究群・KDB")
-    st.write("")
-    if 'recommender' in st.session_state:
-        recommender = st.session_state['recommender']
-    else:
+    if st.checkbox('こちらのサイトで起こった損害を製作者は負いかねます。'):
+        st.title("システム情報工学研究群・KDB")
+        st.write("")
+        if 'recommender' in st.session_state:
+            recommender = st.session_state['recommender']
+        else:
+            report_df = pd.read_csv('成績データ.csv')
+            recommender = TopicBasedRecommender(report_df, num_topics=15)
         report_df = pd.read_csv('成績データ.csv')
-        recommender = TopicBasedRecommender(report_df, num_topics=15)
-    report_df = pd.read_csv('成績データ.csv')
-    keywords_list = recommender.get_keywords_list()
-    recommender.assign_info_to_courses()
-    opt = OptimizeClasses(recommender.df_grad_courses)
-    m0, m1, m2, m3, m4, m5 = st.columns((1, 1, 1, 1, 1, 1))
-    proglam = m0.selectbox('学位プログラムを選択してください:', ['指定なし'] + opt.df['学位プログラム'].unique().tolist())
-    season = m1.selectbox('学期を選択してください:', ['指定なし'] + ['春', '秋', '春季休業中', '秋C春季休業中', '通年'])
-    module = m2.selectbox('モジュールを選択してください:', ['指定なし'] + ['A', 'B', 'C', '集中'])
-    week = m3.selectbox('曜日を選択してください:', ['指定なし'] + ['月', '火', '水', '木', '金'])
-    period = m4.selectbox('時限を選択してください:', ['指定なし'] + ['1', '2', '3', '4', '5', '6'])
-    keyword = m5.selectbox('キーワードを入力してください:', ['指定なし'] + keywords_list)
-    select_list = [proglam, season, module, week, period, keyword]
-    temp = opt.df.copy()
-    for i, select in enumerate(select_list):
-        if select != '指定なし':
-            if i == 0:
-                temp = temp[temp['学位プログラム']==select]
-            elif i in [1, 2, 3, 4]:
-                temp = temp[temp['時間割'].str.contains(select, na=False)]
-            else:
-                if sum(temp.apply(lambda x: select in x['キーワード'], axis=1)) != 0:
-                    temp = temp[temp.apply(lambda x: select in x['キーワード'], axis=1)]
+        keywords_list = recommender.get_keywords_list()
+        recommender.assign_info_to_courses()
+        opt = OptimizeClasses(recommender.df_grad_courses)
+        m0, m1, m2, m3, m4, m5 = st.columns((1, 1, 1, 1, 1, 1))
+        proglam = m0.selectbox('学位プログラムを選択してください:', ['指定なし'] + opt.df['学位プログラム'].unique().tolist())
+        season = m1.selectbox('学期を選択してください:', ['指定なし'] + ['春', '秋', '春季休業中', '秋C春季休業中', '通年'])
+        module = m2.selectbox('モジュールを選択してください:', ['指定なし'] + ['A', 'B', 'C', '集中'])
+        week = m3.selectbox('曜日を選択してください:', ['指定なし'] + ['月', '火', '水', '木', '金'])
+        period = m4.selectbox('時限を選択してください:', ['指定なし'] + ['1', '2', '3', '4', '5', '6'])
+        keyword = m5.selectbox('キーワードを入力してください:', ['指定なし'] + keywords_list)
+        select_list = [proglam, season, module, week, period, keyword]
+        temp = opt.df.copy()
+        for i, select in enumerate(select_list):
+            if select != '指定なし':
+                if i == 0:
+                    temp = temp[temp['学位プログラム']==select]
+                elif i in [1, 2, 3, 4]:
+                    temp = temp[temp['時間割'].str.contains(select, na=False)]
                 else:
-                    temp = pd.DataFrame()
-    
-    if temp.empty:
-        st.write("該当する科目はありません。")
-    else:
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '科目区分名', 'キーワード', 'シラバス']]
-        st.dataframe(
-                temp,
-                column_config={
-                    "シラバス": st.column_config.LinkColumn(
-                        "シラバス",
-                        display_text="シラバスを表示",
-                    )
-                },
-            )
-    st.info(
-        """
-        ※こちらでは主に選択必修となる、研究群共通科目群を表示します。
-        [「大学院 履修方法・修了要件」はここから参照できます（2024年版）](https://www.tsukuba.ac.jp/education/g-courses-handbook/2024rishu.html)
-        """
-    )
+                    if sum(temp.apply(lambda x: select in x['キーワード'], axis=1)) != 0:
+                        temp = temp[temp.apply(lambda x: select in x['キーワード'], axis=1)]
+                    else:
+                        temp = pd.DataFrame()
+        
+        if temp.empty:
+            st.write("該当する科目はありません。")
+        else:
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '科目区分名', 'キーワード', 'シラバス']]
+            st.dataframe(
+                    temp,
+                    column_config={
+                        "シラバス": st.column_config.LinkColumn(
+                            "シラバス",
+                            display_text="シラバスを表示",
+                        )
+                    },
+                )
+        st.info(
+            """
+            ※こちらでは主に選択必修となる、研究群共通科目群を表示します。
+            [「大学院 履修方法・修了要件」はここから参照できます（2024年版）](https://www.tsukuba.ac.jp/education/g-courses-handbook/2024rishu.html)
+            """
+        )

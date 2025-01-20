@@ -477,15 +477,16 @@ class OptimizeClasses():
                                 dict_time_class[f'{season}_{module}_{week}_{period}'] += x[row['授業科目名']]
                             else:
                                 dict_time_class[f'{season}_{module}_{week}_{period}'] = x[row['授業科目名']]
-
+        
+        # 時間割のバッキングを阻止
         for season in ['春', '秋']:
             for module in ['A', 'B', 'C']:
                 for week in ['月', '火', '水', '木', '金']:
                     for period in range(1, 6):
-                        #y_zers = {f'{season}_{module}_{week}_{period}': pulp.LpVariable(f'y_{season}_{module}_{week}_{period}', 0, 1, pulp.LpBinary)}
                         if f'{season}_{module}_{week}_{period}' in dict_time_class.keys():
                             problem += dict_time_class[f'{season}_{module}_{week}_{period}'] <= 1
-
+                            
+        # 卒業要件
         problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]!='1' and row["科目区分"]==0) >= 2
         problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]=='1' and row["科目区分"]==0) >= 6
         problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]=='1' and row["科目区分"]==1) >= 10
