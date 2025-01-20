@@ -25,115 +25,6 @@ class TopicBasedRecommender():
         self.df_2 = pd.read_excel("大学院専門科目_df.xlsx")
         self.num_topics = num_topics
 
-        # ===== 前処理 =====
-        self.df_combined['キーワード'] = self.df_combined['キーワード'].apply(ast.literal_eval)  # 'キーワード' 列をリスト形式に変換
-        self.df_0 = self.df_0.iloc[6:]  # df_0 の最初5行を削除（英語の授業を除外）
-
-        # '授業科目名' 列をリスト化
-        grad_course_list = pd.concat([self.df_0['授業科目名'], self.df_2['授業科目名']]).unique().tolist()
-        social_course_list = self.df_1['授業科目名'].unique().tolist()
-
-        # 大学院専門科目・大学院専門基礎科目の授業を抽出
-        self.df_grad_courses = self.df_combined[self.df_combined['授業科目名'].isin(grad_course_list)].copy()
-        self.df_social_courses = self.df_combined[self.df_combined['授業科目名'].isin(social_course_list)].copy()
-
-        self.df_grad.rename(columns={'科目名 ': '科目名'}, inplace=True)
-
-        # 評価を数値にマッピング
-        grade_mapping = {'A+': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 0, 'P': 3, 'F': 0}
-        self.df_grad['総合評価'] = self.df_grad['総合評価'].replace(grade_mapping).astype('int')
-        #self.df_grad['総合評価'] = self.df_grad.apply(lambda x: x['総合評価'] * int(x['単位数']))
-
-        # 成績データから必要な列を抽出し、先頭の不要な行を除外
-        self.df_grad = self.df_grad[['科目名', '総合評価']].iloc[9:]
-
-        # '授業科目名' 列をデータフレームに変換して LEFT JOIN で結合
-        df_class_name = self.df_combined[['授業科目名']]
-        df_grad_filtered = self.df_grad[['科目名', '総合評価']]
-        self.df_result = df_class_name.merge(df_grad_filtered, how='left', left_on='授業科目名', right_on='科目名')
-        self.df_result['総合評価'] = self.df_result['総合評価'].fillna(0).astype(int)  # NaN を 0 に置換し整数型に変換
-        self.df_result.drop(columns='科目名', inplace=True)  # 不要な列を削除
-
-        def return_syllabus_link(class_str):
-            return f'https://kdb.tsukuba.ac.jp/syllabi/2024/{class_str}/jpn'
-
-        self.df_0['シラバス'] = self.df_0['科目番号'].apply(return_syllabus_link)
-        self.df_1['シラバス'] = self.df_1['科目番号'].apply(return_syllabus_link)
-        self.df_2['シラバス'] = self.df_2['科目番号'].apply(return_syllabus_link)
-
-        self.df_0['科目区分'] = [0]*len(self.df_0)
-        self.df_2['科目区分'] = [1]*len(self.df_2)
-
-    def create_lda_model(self):
-
-        # ===== LDA モデルの作成 =====
-        texts = self.df_combined['キーワード']  # トークン化されたキーワードのリスト
-        self.dictionary = corpora.Dictionary(texts)
-        corpus = [self.dictionary.doc2bow(text) for text in texts]
-        self.lda_model = models.LdaModel(corpus=corpus, id2word=self.dictionary, num_topics=self.num_topics, random_state=42, passes=10)
-
-        # 各トピックの上位単語を表示
-        #print("===== 各トピックの上位単語 =====")
-        #for idx, topic in self.lda_model.print_topics(num_words=5):
-        #    print(f"トピック {idx}: {topic}")
-
-        # ユーザーの成績評価リストを取得
-        user_ratings = self.df_result['総合評価'].tolist()
-
-        # ===== ユーザープロファイル作成 =====
-        topic_distributions = [self.lda_model.get_document_topics(doc, minimum_probability=0) for doc in corpus]
-        self.user_profile = np.average(
-            np.array([[prob for _, prob in doc] for doc in topic_distributions]),
-            axis=0,
-            weights=user_ratings
-        )
-        print("\nユーザーの関心トピック分布:", self.user_profile)
-        self.user_profile_percent = (self.user_profile / self.user_profile.sum() * 100).astype(int)
-        
-    def get_keywords_list(self):
-        # キーワード列のすべてのリストを結合
-        all_keywords = []
-        for keywords in self.df_combined['キーワード']:
-            if isinstance(keywords, str):  # 文字列の場合のみ処理
-                all_keywords.extend(eval(keywords))  # リストとして評価して追加
-            elif isinstance(keywords, list):  # 既にリスト形式の場合
-                all_keywords.extend(keywords)
-
-        # キーワードの出現頻度をカウント
-        keyword_counts = Counter(all_keywords)
-
-        # 出現頻度順に並び替え
-        sorted_keywords = keyword_counts.most_common()
-        keywords_only = [keyword for keyword, count in sorted_keywords]
-        return keywords_only
-
-    def get_topic_keywords(self, keywords_only):
-        # ===== トピックの重要キーワード =====
-        # トピックごとの単語分布を取得
-        def find_highest_topic_for_keyword(keyword, dictionary):
-            highest_topic_id = None
-            highest_probability = 0
-
-            # 各トピックをループして確率を確認
-            for topic_id, topic_terms in self.lda_model.show_topics(formatted=False, num_words=len(dictionary)):
-                for term_id, probability in topic_terms:
-                    if term_id == keyword and probability > highest_probability:
-                        highest_topic_id = topic_id
-                        highest_probability = probability
-
-            return highest_topic_id, highest_probability
-
-        topic_keywords = [[[], []] for i in range(self.num_topics)]
-        for topic_id in range(self.num_topics):
-            top_words = self.lda_model.show_topic(topic_id, topn=10)
-            topic_keywords[topic_id][0] = [word for word, _ in top_words]
-
-        for keyword in keywords_only:
-            highest_topic_id, probability = find_highest_topic_for_keyword(keyword, self.dictionary)
-            topic_keywords[highest_topic_id][1].append(keyword)
-
-        return topic_keywords
-
     def assign_info_to_courses(self):
 
         # ===== 関数定義 =====
@@ -201,6 +92,41 @@ class TopicBasedRecommender():
 
         def return_syllabus_link(class_str):
             return f'https://kdb.tsukuba.ac.jp/syllabi/2024/{class_str}/jpn'
+
+        # ===== 前処理 =====
+        self.df_combined['キーワード'] = self.df_combined['キーワード'].apply(ast.literal_eval)  # 'キーワード' 列をリスト形式に変換
+        self.df_0 = self.df_0.iloc[6:]  # df_0 の最初5行を削除（英語の授業を除外）
+
+        # '授業科目名' 列をリスト化
+        grad_course_list = pd.concat([self.df_0['授業科目名'], self.df_2['授業科目名']]).unique().tolist()
+        social_course_list = self.df_1['授業科目名'].unique().tolist()
+
+        # 大学院専門科目・大学院専門基礎科目の授業を抽出
+        self.df_grad_courses = self.df_combined[self.df_combined['授業科目名'].isin(grad_course_list)].copy()
+        self.df_social_courses = self.df_combined[self.df_combined['授業科目名'].isin(social_course_list)].copy()
+
+        self.df_grad.rename(columns={'科目名 ': '科目名'}, inplace=True)
+
+        # 評価を数値にマッピング
+        grade_mapping = {'A+': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 0, 'P': 3, 'F': 0}
+        self.df_grad['総合評価'] = self.df_grad['総合評価'].replace(grade_mapping).astype('int')
+        #self.df_grad['総合評価'] = self.df_grad.apply(lambda x: x['総合評価'] * int(x['単位数']))
+
+        # 成績データから必要な列を抽出し、先頭の不要な行を除外
+        self.df_grad = self.df_grad[['科目名', '総合評価']].iloc[9:]
+
+        # '授業科目名' 列をデータフレームに変換して LEFT JOIN で結合
+        self.df_result = self.df_combined[['授業科目名']]
+        self.df_result = self.df_result.merge(self.df_grad[['科目名', '総合評価']], how='left', left_on='授業科目名', right_on='科目名')
+        self.df_result['総合評価'] = self.df_result['総合評価'].fillna(0).astype(int)  # NaN を 0 に置換し整数型に変換
+        self.df_result.drop(columns='科目名', inplace=True)  # 不要な列を削除
+
+        self.df_0['シラバス'] = self.df_0['科目番号'].apply(return_syllabus_link)
+        self.df_1['シラバス'] = self.df_1['科目番号'].apply(return_syllabus_link)
+        self.df_2['シラバス'] = self.df_2['科目番号'].apply(return_syllabus_link)
+
+        self.df_0['科目区分'] = [0]*len(self.df_0)
+        self.df_2['科目区分'] = [1]*len(self.df_2)
             
         grad_subject_num_dict = (
               self.df_0.set_index('授業科目名')['科目番号'].astype(str).to_dict() |
@@ -236,6 +162,71 @@ class TopicBasedRecommender():
         self.df_social_courses['主専攻'] = self.df_social_courses['科目番号'].apply(classify_social_course)
         self.df_social_courses['授業概要'] = self.df_social_courses['授業科目名'].map(social_subject_overview)
         self.df_social_courses['シラバス'] = self.df_social_courses['科目番号'].apply(return_syllabus_link)
+    
+    def create_lda_model(self):
+
+        # ===== LDA モデルの作成 =====
+        texts = self.df_combined['キーワード']  # トークン化されたキーワードのリスト
+        self.dictionary = corpora.Dictionary(texts)
+        corpus = [self.dictionary.doc2bow(text) for text in texts]
+        self.lda_model = models.LdaModel(corpus=corpus, id2word=self.dictionary, num_topics=self.num_topics, random_state=42, passes=10)
+
+        # ユーザーの成績評価リストを取得
+        user_ratings = self.df_result['総合評価'].tolist()
+
+        # ===== ユーザープロファイル作成 =====
+        topic_distributions = [self.lda_model.get_document_topics(doc, minimum_probability=0) for doc in corpus]
+        self.user_profile = np.average(
+            np.array([[prob for _, prob in doc] for doc in topic_distributions]),
+            axis=0,
+            weights=user_ratings
+        )
+        print("\nユーザーの関心トピック分布:", self.user_profile)
+        self.user_profile_percent = (self.user_profile / self.user_profile.sum() * 100).astype(int)
+        
+    def get_keywords_list(self):
+        # キーワード列のすべてのリストを結合
+        all_keywords = []
+        for keywords in self.df_combined['キーワード']:
+            if isinstance(keywords, str):  # 文字列の場合のみ処理
+                all_keywords.extend(eval(keywords))  # リストとして評価して追加
+            elif isinstance(keywords, list):  # 既にリスト形式の場合
+                all_keywords.extend(keywords)
+
+        # キーワードの出現頻度をカウント
+        keyword_counts = Counter(all_keywords)
+
+        # 出現頻度順に並び替え
+        sorted_keywords = keyword_counts.most_common()
+        keywords_only = [keyword for keyword, count in sorted_keywords]
+        return keywords_only
+
+    def get_topic_keywords(self, keywords_only):
+        # ===== トピックの重要キーワード =====
+        # トピックごとの単語分布を取得
+        def find_highest_topic_for_keyword(keyword, dictionary):
+            highest_topic_id = None
+            highest_probability = 0
+
+            # 各トピックをループして確率を確認
+            for topic_id, topic_terms in self.lda_model.show_topics(formatted=False, num_words=len(dictionary)):
+                for term_id, probability in topic_terms:
+                    if term_id == keyword and probability > highest_probability:
+                        highest_topic_id = topic_id
+                        highest_probability = probability
+
+            return highest_topic_id, highest_probability
+
+        topic_keywords = [[[], []] for i in range(self.num_topics)]
+        for topic_id in range(self.num_topics):
+            top_words = self.lda_model.show_topic(topic_id, topn=10)
+            topic_keywords[topic_id][0] = [word for word, _ in top_words]
+
+        for keyword in keywords_only:
+            highest_topic_id, probability = find_highest_topic_for_keyword(keyword, self.dictionary)
+            topic_keywords[highest_topic_id][1].append(keyword)
+
+        return topic_keywords
     
     def _number_to_char(self, number):
             if number < 0:
@@ -278,8 +269,8 @@ class TopicBasedRecommender():
         number_of_recommendations_by_topic = sorted(enumerate(number_of_recommendations_by_topic), key=lambda x: x[1], reverse=True)
         return number_of_recommendations_by_topic
 
-    # ===== 大学院授業の推薦 =====
     def execute_recommendation(self, topic):
+        # ===== 大学院授業の推薦 =====
         your_course = self.df_grad[self.df_grad['トピック']==topic]['科目名'].tolist()
         temp = pd.concat([self.df_0, self.df_2]).merge(self.df_grad_courses[['授業科目名', 'キーワード', 'トピック', 'トピック確度']], on='授業科目名', how='left')
         temp = temp[temp['トピック']==topic]
@@ -377,7 +368,6 @@ class TopicBasedRecommender():
             ),
         )
 
-
         return fig
 
     def plot_topic_distribution_of_user_profile(self):
@@ -412,7 +402,6 @@ class TopicBasedRecommender():
 class OptimizeClasses():
     def __init__(self, df):
         self.df = df.copy()
-
         self.df['season'] = [None] * len(self.df)
         self.df['module'] = [None] * len(self.df)
         self.df['week'] = [None] * len(self.df)
@@ -454,7 +443,7 @@ class OptimizeClasses():
                     result.append(period)
                 self.df.loc[index, 'period'] = str(result)
     
-    def optimize(self):
+    def optimize(self, requirements_dict):
         # 問題を宣言
         problem = pulp.LpProblem("recommendation", pulp.LpMaximize)
 
@@ -487,11 +476,17 @@ class OptimizeClasses():
                             problem += dict_time_class[f'{season}_{module}_{week}_{period}'] <= 1
                             
         # 卒業要件
-        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]!='1' and row["科目区分"]==0) >= 2
-        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]=='1' and row["科目区分"]==0) >= 6
-        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]=='1' and row["科目区分"]==1) >= 10
-        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows()) <= 24
-        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows()) >= 24
+        
+        # 選択科目数
+        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows()) == requirements_dict['選択必修数']
+        # 専門基礎科目かつ専攻
+        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]==requirements_dict['学位番号'] and row["科目区分"]==0) >= requirements_dict['専門基礎科目かつ専攻']
+        # 専門基礎科目かつ専攻以外
+        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]!=requirements_dict['学位番号'] and row["科目区分"]==0) >= requirements_dict['専門基礎科目かつ専攻以外']
+        # 専門科目かつ専攻
+        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]==requirements_dict['学位番号'] and row["科目区分"]==1) >= requirements_dict['専門科目かつ専攻']
+        # 専門科目かつ専攻以外
+        problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]!=requirements_dict['学位番号'] and row["科目区分"]==1) >= requirements_dict['専門科目かつ専攻以外']
 
         # 目的関数を宣言
         problem += pulp.lpSum(row['推薦スコア'] * x[row["授業科目名"]] for index, row in self.df.iterrows())
@@ -518,10 +513,10 @@ class OptimizeClasses():
 if __name__ == '__main__':
     df_grad = pd.read_csv("成績データ.csv", encoding="utf-8")
     recommender = TopicBasedRecommender(df_grad, num_topics=30)
+    recommender.assign_info_to_courses()
     recommender.create_lda_model()
     keywords_list = recommender.get_keywords_list()
     topic_keywords = recommender.get_topic_keywords(keywords_list)
-    recommender.assign_info_to_courses()
     recommender.assign_topic_to_courses()
     number_of_recommendations_by_topic = recommender.decide_number_of_recommendations_by_topic()
 
