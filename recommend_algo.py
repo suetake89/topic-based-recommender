@@ -19,13 +19,13 @@ class TopicBasedRecommender():
         self.df_grad = df_grad
 
         # ===== データ読み込み =====
-        self.df_combined = pd.read_excel('大学院専門科目_df+社会工学類授業_df+大学院専門科目_df+キーワード完成版.xlsx')
+        self.df_combined = pd.read_excel("キーワード_拡大版.xlsx")
         self.df_0 = pd.read_excel("大学院専門基礎科目_df.xlsx")
         self.df_1 = pd.read_excel("社会工学類授業_df.xlsx")
         self.df_2 = pd.read_excel("大学院専門科目_df.xlsx")
         self.num_topics = num_topics
 
-    def assign_info_to_courses(self):
+    def assign_info_to_courses(self, ratio=1):
 
         # ===== 関数定義 =====
         classification_rules_digit = {
@@ -94,7 +94,9 @@ class TopicBasedRecommender():
             return f'https://kdb.tsukuba.ac.jp/syllabi/2024/{class_str}/jpn'
 
         # ===== 前処理 =====
-        self.df_combined['キーワード'] = self.df_combined['キーワード'].apply(ast.literal_eval)  # 'キーワード' 列をリスト形式に変換
+        self.df_combined = self.df_combined.rename(columns={'キーワード': '1倍キーワード'})  # 'キーワード' 列をリスト形式に変換
+        #self.df_combined['キーワード'] = self.df_combined[f'{ratio}倍キーワード'].apply(ast.literal_eval)  # 'キーワード' 列をリスト形式に変換
+        self.df_combined['キーワード'] = self.df_combined[f'拡張キーワード'].apply(ast.literal_eval)
         self.df_0 = self.df_0.iloc[6:]  # df_0 の最初5行を削除（英語の授業を除外）
 
         # '授業科目名' 列をリスト化
@@ -256,11 +258,12 @@ class TopicBasedRecommender():
         self.df_grad_courses['関連トピック'] = self.df_grad_courses['キーワード'].apply(return_most_relevant_topic_idx)
         self.df_grad_courses['トピック'] = self.df_grad_courses['関連トピック'].apply(self._number_to_char)
         self.df_grad_courses['トピック選好'] = self.df_grad_courses['関連トピック'].apply(lambda x: self.user_profile_percent[x])
-        self.df_grad_courses['トピック確度'] = self.df_grad_courses['キーワード'].apply(return_relevant_prob)
-        self.df_grad_courses['推薦スコア'] = self.df_grad_courses['トピック選好'] * self.df_grad_courses['トピック確度']
+        self.df_grad_courses['トピック比率'] = self.df_grad_courses['キーワード'].apply(return_relevant_prob)
+        self.df_grad_courses['推薦スコア'] = self.df_grad_courses['トピック選好'] * self.df_grad_courses['トピック比率']
         self.df_grad_courses['おすすめ度'] = self.df_grad_courses['推薦スコア'].astype(int)
         self.df_social_courses['関連トピック'] = self.df_social_courses['キーワード'].apply(return_most_relevant_topic_idx)
         self.df_social_courses['トピック'] = self.df_social_courses['関連トピック'].apply(self._number_to_char)
+        self.df_social_courses['トピック比率'] = self.df_social_courses['キーワード'].apply(return_relevant_prob)
         self.df_grad = self.df_grad.merge(self.df_social_courses[['授業科目名', 'トピック']], left_on='科目名', right_on='授業科目名', how='left')
 
     def decide_number_of_recommendations_by_topic(self, total_n_recommendations = 50):
@@ -272,7 +275,7 @@ class TopicBasedRecommender():
     def execute_recommendation(self, topic):
         # ===== 大学院授業の推薦 =====
         your_course = self.df_grad[self.df_grad['トピック']==topic]['科目名'].tolist()
-        temp = pd.concat([self.df_0, self.df_2]).merge(self.df_grad_courses[['授業科目名', 'キーワード', 'トピック', 'トピック確度']], on='授業科目名', how='left')
+        temp = pd.concat([self.df_0, self.df_2]).merge(self.df_grad_courses[['授業科目名', 'キーワード', 'トピック', 'トピック比率']], on='授業科目名', how='left')
         temp = temp[temp['トピック']==topic]
 
         return temp[['科目番号', '授業科目名', '単位数', '標準履修年次', '時間割', '担当教員', '成績評価方法', 'シラバス']], your_course

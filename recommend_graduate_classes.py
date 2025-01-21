@@ -146,10 +146,11 @@ with tab1:
 # タブ2: 最適化実行
 with tab2:
     if 'report_df' in st.session_state:
-        #input_value = st.text_input("トピック数に入力してください:", "15")
-        #num_topics = int(input_value) if input_value else 15
+        #ratio = st.selectbox('キーワードの拡大率を選択:', list(range(1, 11)))
+        input_value = st.text_input("トピック数に入力してください:", "15")
+        num_topics = int(input_value) if input_value else 15
         if st.button("大学院授業の推薦を実行"):
-            num_topics = 15
+            # num_topics = 15
             st.write("#### 最適化結果")
             recommender = TopicBasedRecommender(st.session_state['report_df'], num_topics=num_topics)
             recommender.assign_info_to_courses()
@@ -251,7 +252,7 @@ with tab3:
         
         st.write("#### 学類の授業")
         temp = recommender.df_social_courses[recommender.df_social_courses['トピック']==option]
-        temp = temp[['科目番号', '授業科目名', '主専攻', 'キーワード', 'シラバス']]
+        temp = temp[['科目番号', '授業科目名', '主専攻', 'トピック比率', 'キーワード', 'シラバス']]
         # シラバスデータフレーム
         st.dataframe(
             temp,
@@ -264,7 +265,7 @@ with tab3:
         )
         st.write("#### 院の授業")
         temp = recommender.df_grad_courses[recommender.df_grad_courses['トピック']==option]
-        temp = temp[['科目番号', '授業科目名', '学位プログラム', 'キーワード', 'シラバス']]
+        temp = temp[['科目番号', '授業科目名', '学位プログラム', 'トピック比率', 'キーワード', 'シラバス']]
         # シラバスデータフレーム
         st.dataframe(
             temp,
@@ -282,12 +283,19 @@ with tab3:
             #if n_r == 0:
             #    continue
             temp, your_course = recommender.execute_recommendation(topic)
+            
+            temp_1 = recommender.df_social_courses[recommender.df_social_courses['トピック']==topic]
+            temp_2 = recommender.df_grad_courses[recommender.df_grad_courses['トピック']==topic]
 
             # トピック重要ワードと専門用語を囲む
             st.markdown(
                 f"""
                 <div style="padding: 1rem; background-color: #DEEBF2; color: #000000; border-radius: 10px; margin-top: 1rem;">
                     <p style="font-size: 25px;"><strong>トピック: {topic}</strong></p>
+                    <p><strong>このトピックの学類授業：</strong></p>
+                    <p>{"、".join(keyword for keyword in temp_1['授業科目名'].tolist())}</p>
+                    <p><strong>このトピックの大学院授業：</strong></p>
+                    <p>{"、".join(keyword for keyword in temp_2['授業科目名'].tolist())}</p>
                     <p><strong>トピック重要ワード：</strong></p>
                     <p>{"、".join(keyword for keyword in topic_keywords[topic_id][0])}</p>
                     <p><strong>トピック専門用語：</strong></p>
