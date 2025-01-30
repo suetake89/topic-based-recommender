@@ -175,9 +175,26 @@ class TopicBasedRecommender():
 
         # ユーザーの成績評価リストを取得
         user_ratings = self.df_result['総合評価'].tolist()
+        
 
         # ===== ユーザープロファイル作成 =====
         topic_distributions = [self.lda_model.get_document_topics(doc, minimum_probability=0) for doc in corpus]
+        print(user_ratings)
+        print(topic_distributions)
+        # topic_distributions の行数（ドキュメントの数）を確認
+        num_documents = len(topic_distributions)
+        print("Number of documents:", num_documents)
+
+        # user_ratings の長さを確認
+        num_ratings = len(user_ratings)
+        print("Number of user ratings:", num_ratings)
+
+        # 両者が一致するかどうかを確認
+        if num_documents == num_ratings:
+            print("The lengths match. You can proceed with the averaging.")
+        else:
+            print("The lengths do not match. You need to adjust the user_ratings.")
+
         self.user_profile = np.average(
             np.array([[prob for _, prob in doc] for doc in topic_distributions]),
             axis=0,
@@ -231,15 +248,19 @@ class TopicBasedRecommender():
         return topic_keywords
     
     def _number_to_char(self, number):
-            if number < 0:
-                raise ValueError("The number must be non-negative.")
+        topic_number_dict = {0:"社会設計・コミュニケーション", 1:"人間と認知の工学", 2:"情報工学", 3:"都市・土木", 4:"社会の数理モデル", 5:"経済・金融・政治"}
+        return topic_number_dict[number]
+        """
+        if number < 0:
+            raise ValueError("The number must be non-negative.")
 
-            result = []
-            while number >= 0:
-                result.append(chr(ord('A') + number % 26))
-                number = number // 26 - 1
+        result = []
+        while number >= 0:
+            result.append(chr(ord('A') + number % 26))
+            number = number // 26 - 1
 
-            return ''.join(reversed(result))
+        return ''.join(reversed(result))
+        """
         
     def assign_topic_to_courses(self):
         

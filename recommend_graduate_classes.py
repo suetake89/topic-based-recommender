@@ -147,8 +147,8 @@ with tab1:
 with tab2:
     if 'report_df' in st.session_state:
         #ratio = st.selectbox('キーワードの拡大率を選択:', list(range(1, 11)))
-        input_value = st.text_input("トピック数に入力してください:", "15")
-        num_topics = int(input_value) if input_value else 15
+        #input_value = st.text_input("トピック数に入力してください:", "15")
+        num_topics = 6 #int(input_value) if input_value else 15
         if st.button("大学院授業の推薦を実行"):
             # num_topics = 15
             st.write("#### 最適化結果")
