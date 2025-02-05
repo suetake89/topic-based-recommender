@@ -143,7 +143,7 @@ with tab1:
                 st.session_state['report_df'] = report_df
                 st.success("データアップロード完了！")
 
-# タブ2: 最適化実行
+# タブ2: 推薦システム実行
 with tab2:
     if 'report_df' in st.session_state:
         #ratio = st.selectbox('キーワードの拡大率を選択:', list(range(1, 11)))
@@ -333,7 +333,7 @@ with tab4:
         
         st.write(f"#### 専門基礎科目かつ専攻　（{requirements[program]['専門基礎科目かつ専攻']} 単位以上）")
         temp = df_schedule[(df_schedule['学位プログラム']==requirements[program]['関連科目名']) & (df_schedule['科目区分']==0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', 'トピック', 'おすすめ度', 'シラバス']]
+        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
         st.dataframe(
                 temp,
                 column_config={
@@ -346,7 +346,7 @@ with tab4:
         
         st.write(f"#### 専門基礎科目かつ専攻以外　（{requirements[program]['専門基礎科目かつ専攻以外']} 単位以上）")
         temp = df_schedule[(df_schedule['学位プログラム']!=requirements[program]['関連科目名']) & (df_schedule['科目区分']==0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', 'トピック', 'おすすめ度', 'シラバス']]
+        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
         st.dataframe(
                 temp,
                 column_config={
@@ -359,7 +359,7 @@ with tab4:
         
         st.write(f"#### 専門科目かつ専攻　（{requirements[program]['専門科目かつ専攻']} 単位以上）")
         temp = df_schedule[(df_schedule['学位プログラム']==requirements[program]['関連科目名']) & (df_schedule['科目区分']!=0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', 'トピック', 'おすすめ度', 'シラバス']]
+        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
         st.dataframe(
                 temp,
                 column_config={
@@ -371,7 +371,7 @@ with tab4:
             )
         st.write(f"#### 専門科目かつ専攻　（{requirements[program]['専門基礎科目かつ専攻以外']} 単位以上）")
         temp = df_schedule[(df_schedule['学位プログラム']!=requirements[program]['関連科目名']) & (df_schedule['科目区分']!=0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', 'トピック', 'おすすめ度', 'シラバス']]
+        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
         st.dataframe(
                 temp,
                 column_config={
