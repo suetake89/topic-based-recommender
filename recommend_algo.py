@@ -513,7 +513,7 @@ class OptimizeClasses():
         problem += pulp.lpSum(row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows() if row["科目番号"][4]!=requirements_dict['学位番号'] and row["科目区分"]==1) >= requirements_dict['専門科目かつ専攻以外']
 
         # 目的関数を宣言
-        problem += pulp.lpSum(row['推薦スコア'] * row['単位数'] * x[row["授業科目名"]] for index, row in self.df.iterrows())
+        problem += pulp.lpSum(row['推薦スコア'] * row['単位数'] * x[row["授業科目名"]] * random.uniform(0.9, 1.1) for index, row in self.df.iterrows())
 
         # 問題を解く
         status = problem.solve()

@@ -322,75 +322,75 @@ with tab4:
                         "構造エネルギー工学学位プログラム":{'学位番号':'6', '選択必修数':18, '専門基礎科目かつ専攻':0, '専門基礎科目かつ専攻以外':0, '専門科目かつ専攻':0, '専門科目かつ専攻以外':0, '関連科目名':'構造エネルギー工学関連科目'}
                         }
         
-        
-        recommender = st.session_state['recommender']
-        df = recommender.df_grad_courses.copy()
-        opt = OptimizeClasses(df)
-        df_schedule = opt.optimize(requirements[program])
-        st.markdown("")
-        st.write(f"### 推薦された選択必修の例（{requirements[program]['選択必修数']} 単位以上）")
-        st.write("")
-        
-        st.write(f"#### 専門基礎科目かつ専攻　（{requirements[program]['専門基礎科目かつ専攻']} 単位以上）")
-        temp = df_schedule[(df_schedule['学位プログラム']==requirements[program]['関連科目名']) & (df_schedule['科目区分']==0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
-        st.dataframe(
-                temp,
-                column_config={
-                    "シラバス": st.column_config.LinkColumn(
-                        "シラバス",
-                        display_text="シラバスを表示",
-                    )
-                },
-            )
-        
-        st.write(f"#### 専門基礎科目かつ専攻以外　（{requirements[program]['専門基礎科目かつ専攻以外']} 単位以上）")
-        temp = df_schedule[(df_schedule['学位プログラム']!=requirements[program]['関連科目名']) & (df_schedule['科目区分']==0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
-        st.dataframe(
-                temp,
-                column_config={
-                    "シラバス": st.column_config.LinkColumn(
-                        "シラバス",
-                        display_text="シラバスを表示",
-                    )
-                },
-            )
-        
-        st.write(f"#### 専門科目かつ専攻　（{requirements[program]['専門科目かつ専攻']} 単位以上）")
-        temp = df_schedule[(df_schedule['学位プログラム']==requirements[program]['関連科目名']) & (df_schedule['科目区分']!=0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
-        st.dataframe(
-                temp,
-                column_config={
-                    "シラバス": st.column_config.LinkColumn(
-                        "シラバス",
-                        display_text="シラバスを表示",
-                    )
-                },
-            )
-        st.write(f"#### 専門科目かつ専攻　（{requirements[program]['専門基礎科目かつ専攻以外']} 単位以上）")
-        temp = df_schedule[(df_schedule['学位プログラム']!=requirements[program]['関連科目名']) & (df_schedule['科目区分']!=0)]
-        temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
-        st.dataframe(
-                temp,
-                column_config={
-                    "シラバス": st.column_config.LinkColumn(
-                        "シラバス",
-                        display_text="シラバスを表示",
-                    )
-                },
-            )
-        st.markdown("")
-        st.info(
-                """
-                ※時間割が被らないように選択されています。
-                卒業要件を満たすかは各自でもご確認ください。損害の責任は負いかねます。
-                また、研究群共通科目群のみに対応しています。
-                学位プログラム科目群と大学院共通科目、学術院共通専門基礎科目はこちらで推薦されることはありません。
-                特に、情報理工学位プログラム、知能機能システム学位プログラムは学位プログラム科目群が多いですが、そちらは各自でご確認ください。
-                """
-            )
+        if st.button("スケジューリングを実行"):
+            recommender = st.session_state['recommender']
+            df = recommender.df_grad_courses.copy()
+            opt = OptimizeClasses(df)
+            df_schedule = opt.optimize(requirements[program])
+            st.markdown("")
+            st.write(f"### 推薦された選択必修の例（{requirements[program]['選択必修数']} 単位以上）")
+            st.write("")
+            
+            st.write(f"#### 専門基礎科目かつ専攻　（{requirements[program]['専門基礎科目かつ専攻']} 単位以上）")
+            temp = df_schedule[(df_schedule['学位プログラム']==requirements[program]['関連科目名']) & (df_schedule['科目区分']==0)]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
+            st.dataframe(
+                    temp,
+                    column_config={
+                        "シラバス": st.column_config.LinkColumn(
+                            "シラバス",
+                            display_text="シラバスを表示",
+                        )
+                    },
+                )
+            
+            st.write(f"#### 専門基礎科目かつ専攻以外　（{requirements[program]['専門基礎科目かつ専攻以外']} 単位以上）")
+            temp = df_schedule[(df_schedule['学位プログラム']!=requirements[program]['関連科目名']) & (df_schedule['科目区分']==0)]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
+            st.dataframe(
+                    temp,
+                    column_config={
+                        "シラバス": st.column_config.LinkColumn(
+                            "シラバス",
+                            display_text="シラバスを表示",
+                        )
+                    },
+                )
+            
+            st.write(f"#### 専門科目かつ専攻　（{requirements[program]['専門科目かつ専攻']} 単位以上）")
+            temp = df_schedule[(df_schedule['学位プログラム']==requirements[program]['関連科目名']) & (df_schedule['科目区分']!=0)]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
+            st.dataframe(
+                    temp,
+                    column_config={
+                        "シラバス": st.column_config.LinkColumn(
+                            "シラバス",
+                            display_text="シラバスを表示",
+                        )
+                    },
+                )
+            st.write(f"#### 専門科目かつ専攻　（{requirements[program]['専門基礎科目かつ専攻以外']} 単位以上）")
+            temp = df_schedule[(df_schedule['学位プログラム']!=requirements[program]['関連科目名']) & (df_schedule['科目区分']!=0)]
+            temp = temp[['科目番号', '授業科目名', '時間割', '単位数', '学位プログラム', 'トピック', 'おすすめ度', 'シラバス']]
+            st.dataframe(
+                    temp,
+                    column_config={
+                        "シラバス": st.column_config.LinkColumn(
+                            "シラバス",
+                            display_text="シラバスを表示",
+                        )
+                    },
+                )
+            st.markdown("")
+            st.info(
+                    """
+                    ※時間割が被らないように選択されています。
+                    卒業要件を満たすかは各自でもご確認ください。損害の責任は負いかねます。
+                    また、研究群共通科目群のみに対応しています。
+                    学位プログラム科目群と大学院共通科目、学術院共通専門基礎科目はこちらで推薦されることはありません。
+                    特に、情報理工学位プログラム、知能機能システム学位プログラムは学位プログラム科目群が多いですが、そちらは各自でご確認ください。
+                    """
+                )
         
     else:
         st.error("データを先にアップロードして、推薦システムを実行してください。")
