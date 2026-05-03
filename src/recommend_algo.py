@@ -10,8 +10,74 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pulp
 from gensim import corpora, models
-from gensim.models import CoherenceModel
-from sklearn.metrics.pairwise import cosine_similarity
+
+from config import (
+    COURSE_DATA_FILES,
+    DEFAULT_TOPIC_NAME_PREFIX,
+    DEFAULT_TRANSCRIPT_PATH,
+    GRADE_MAPPING,
+    GRADUATE_PROGRAM_BY_ALPHA,
+    GRADUATE_PROGRAM_BY_DIGIT,
+    OPTIMIZATION_MODULES,
+    OPTIMIZATION_PERIODS,
+    OPTIMIZATION_SEASONS,
+    SOCIAL_MAJOR_CATEGORIES,
+    SYLLABUS_YEAR,
+    TOPIC_NAMES,
+    WEEK_OPTIONS,
+)
+
+
+def classify_graduate_course(course_number):
+    """科目番号から学位プログラム関連科目を分類する。"""
+    course_number = str(course_number)
+    if len(course_number) < 5:
+        return "分類不明"
+
+    fourth_char = course_number[3]
+    fifth_char = course_number[4]
+
+    if fourth_char.isdigit():
+        return GRADUATE_PROGRAM_BY_DIGIT.get(fifth_char, "予備")
+
+    if fourth_char.isalpha() and fourth_char.isupper():
+        return GRADUATE_PROGRAM_BY_ALPHA.get(fourth_char, "予備科目")
+
+    return "分類不明"
+
+
+def classify_graduate_basis(course_number):
+    course_number = str(course_number)
+    if len(course_number) < 4:
+        return "その他"
+    if course_number[3] in ["0", "1", "2", "3", "4"]:
+        return 0
+    if course_number[3] in ["5", "6", "7", "8", "9"]:
+        return 1
+    return "その他"
+
+
+def classify_social_course(course_number):
+    """科目番号から社会工学関連の主専攻を分類する。"""
+    course_number = str(course_number)
+    if not course_number.startswith("FH"):
+        return "社会工学でない授業"
+
+    third_char = course_number[2]
+    fourth_char = course_number[3]
+
+    if third_char == "2":
+        return "社会経済システム" if fourth_char in ["4", "6", "7"] else "理工学群共通"
+    if third_char == "3":
+        return "経営工学" if fourth_char in ["2", "3", "4"] else "理工学群共通"
+    if third_char == "4":
+        return "都市計画" if fourth_char in ["6", "7", "8"] else "理工学群共通"
+
+    return "その他"
+
+
+def return_syllabus_link(class_str):
+    return f"https://kdb.tsukuba.ac.jp/syllabi/{SYLLABUS_YEAR}/{class_str}/jpn"
 
 
 class TopicBasedRecommender():
@@ -19,80 +85,13 @@ class TopicBasedRecommender():
         self.df_grad = df_grad
 
         # ===== データ読み込み =====
-        self.df_combined = pd.read_excel("キーワード_拡大版.xlsx")
-        self.df_0 = pd.read_excel("大学院専門基礎科目_df.xlsx")
-        self.df_1 = pd.read_excel("社会工学類授業_df.xlsx")
-        self.df_2 = pd.read_excel("大学院専門科目_df.xlsx")
+        self.df_combined = pd.read_excel(COURSE_DATA_FILES["keywords"])
+        self.df_0 = pd.read_excel(COURSE_DATA_FILES["graduate_basis"])
+        self.df_1 = pd.read_excel(COURSE_DATA_FILES["social"])
+        self.df_2 = pd.read_excel(COURSE_DATA_FILES["graduate"])
         self.num_topics = num_topics
 
     def assign_info_to_courses(self, ratio=1):
-
-        # ===== 関数定義 =====
-        classification_rules_digit = {
-            '0': '共通',
-            '1': '社会工学関連科目',
-            '2': 'サービス工学関連科目',
-            '3': 'リスク・レジリエンス工学関連科目',
-            '4': '情報理工関連科目',
-            '5': '知能機能システム関連科目',
-            '6': '構造エネルギー工学関連科目',
-            '7': 'エンパワーメント情報学関連科目'
-        }
-
-        classification_rules_alpha = {
-            'A': '社会工学関連科目',
-            'B': 'サービス工学関連科目',
-            'C': 'リスク・レジリエンス工学関連科目',
-            'D': '情報理工関連科目',
-            'E': '知能機能システム関連科目',
-            'F': '構造エネルギー工学関連科目'
-        }
-
-        def classify_graduate_course(course_number):
-            """科目番号から関連科目を分類する関数"""
-            fourth_char = course_number[3]
-            fifth_char = course_number[4]
-
-            if fourth_char.isdigit():
-                return classification_rules_digit.get(fifth_char, '予備')
-
-            elif fourth_char.isalpha() and fourth_char.isupper():
-                return classification_rules_alpha.get(fourth_char, '予備科目')
-
-            return '分類不明'
-
-        def classify_graduate_basis(class_num):
-            if class_num[3] in ['0', '1', '2', '3', '4']:
-                return 0 # 専門基礎
-            elif class_num[3] in ['5', '6', '7', '8', '9']:
-                return 1 # 専門基礎
-            else:
-              return 'その他'
-
-        def classify_social_course(course_number):
-            """
-            科目番号から関連科目を分類する関数（社会工学関連の分類）
-            """
-            if not course_number.startswith("FH"):
-                return "社会工学でない授業"
-
-            third_char = course_number[2]  # 科目番号の3文字目
-            fourth_char = course_number[3]  # 科目番号の4文字目
-
-            if third_char == '2':
-                return "社会経済システム" if fourth_char in ['4', '6', '7'] else "理工学群共通"
-
-            elif third_char == '3':
-                return "経営工学" if fourth_char in ['2', '3', '4'] else "理工学群共通"
-
-            elif third_char == '4':
-                return "都市計画" if fourth_char in ['6', '7', '8'] else "理工学群共通"
-
-            return "その他"
-
-        def return_syllabus_link(class_str):
-            return f'https://kdb.tsukuba.ac.jp/syllabi/2024/{class_str}/jpn'
-
         # ===== 前処理 =====
         self.df_combined = self.df_combined.rename(columns={'キーワード': '1倍キーワード'})  # 'キーワード' 列をリスト形式に変換
         #self.df_combined['キーワード'] = self.df_combined[f'{ratio}倍キーワード'].apply(ast.literal_eval)  # 'キーワード' 列をリスト形式に変換
@@ -110,8 +109,7 @@ class TopicBasedRecommender():
         self.df_grad.rename(columns={'科目名 ': '科目名'}, inplace=True)
 
         # 評価を数値にマッピング
-        grade_mapping = {'A+': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 0, 'P': 3, 'F': 0}
-        self.df_grad['総合評価'] = self.df_grad['総合評価'].replace(grade_mapping).astype('int')
+        self.df_grad['総合評価'] = self.df_grad['総合評価'].replace(GRADE_MAPPING).astype('int')
         #self.df_grad['総合評価'] = self.df_grad.apply(lambda x: x['総合評価'] * int(x['単位数']))
 
         # 成績データから必要な列を抽出し、先頭の不要な行を除外
@@ -208,7 +206,7 @@ class TopicBasedRecommender():
         all_keywords = []
         for keywords in self.df_combined['キーワード']:
             if isinstance(keywords, str):  # 文字列の場合のみ処理
-                all_keywords.extend(eval(keywords))  # リストとして評価して追加
+                all_keywords.extend(ast.literal_eval(keywords))  # リストとして評価して追加
             elif isinstance(keywords, list):  # 既にリスト形式の場合
                 all_keywords.extend(keywords)
 
@@ -243,13 +241,13 @@ class TopicBasedRecommender():
 
         for keyword in keywords_only:
             highest_topic_id, probability = find_highest_topic_for_keyword(keyword, self.dictionary)
-            topic_keywords[highest_topic_id][1].append(keyword)
+            if highest_topic_id is not None:
+                topic_keywords[highest_topic_id][1].append(keyword)
 
         return topic_keywords
     
     def _number_to_char(self, number):
-        topic_number_dict = {0:"社会設計・コミュニケーション", 1:"人間と認知の工学", 2:"情報工学", 3:"都市・土木", 4:"社会の数理モデル", 5:"経済・金融・政治"}
-        return topic_number_dict[number]
+        return TOPIC_NAMES.get(number, f"{DEFAULT_TOPIC_NAME_PREFIX}{number + 1}")
         """
         if number < 0:
             raise ValueError("The number must be non-negative.")
@@ -305,20 +303,9 @@ class TopicBasedRecommender():
         # 'トピック番号' と '関連授業' ごとに出現回数をカウント
         df_topic_counts = self.df_grad_courses.groupby(['トピック', '学位プログラム']).size().reset_index(name='出現回数')
 
-        classification_rules_digit = {
-            '0': '共通',
-            '1': '社会工学関連科目',
-            '2': 'サービス工学関連科目',
-            '3': 'リスク・レジリエンス工学関連科目',
-            '4': '情報理工関連科目',
-            '5': '知能機能システム関連科目',
-            '6': '構造エネルギー工学関連科目',
-            '7': 'エンパワーメント情報学関連科目'
-        }
-
         for topic_id in range(self.num_topics):
             topic = self._number_to_char(topic_id)
-            for classify_course in classification_rules_digit.values():
+            for classify_course in GRADUATE_PROGRAM_BY_DIGIT.values():
                 if df_topic_counts[(df_topic_counts['トピック'] == topic) & (df_topic_counts['学位プログラム'] == classify_course)].empty:
                     df_topic_counts = pd.concat([
                         df_topic_counts,
@@ -359,7 +346,7 @@ class TopicBasedRecommender():
 
         for topic_id in range(self.num_topics):
             topic = self._number_to_char(topic_id)
-            for classify_course in ["理工学群共通", "社会経済システム", "経営工学", "都市計画", "その他"]:
+            for classify_course in SOCIAL_MAJOR_CATEGORIES:
                 if df_topic_counts[(df_topic_counts['トピック'] == topic) & (df_topic_counts['主専攻'] == classify_course)].empty:
                     df_topic_counts = pd.concat([
                         df_topic_counts,
@@ -435,7 +422,7 @@ class OptimizeClasses():
             season_module = row['実施学期']
             print(season_module)
             result = []
-            for season in ['春', '秋']:
+            for season in OPTIMIZATION_SEASONS:
                 if pd.isna(season_module):
                     continue
                 if season in season_module:
@@ -443,7 +430,7 @@ class OptimizeClasses():
                 self.df.loc[index, 'season'] = str(result)
             
             result = []
-            for module in ['A', 'B', 'C']:
+            for module in OPTIMIZATION_MODULES:
                 if pd.isna(season_module):
                     continue
                 if module in season_module:
@@ -452,7 +439,7 @@ class OptimizeClasses():
             
             result = []
             week_period = row['曜時限']
-            for week in ['月', '火', '水', '木', '金']:
+            for week in WEEK_OPTIONS:
                 if pd.isna(week_period):
                     continue
                 if week in week_period:
@@ -460,7 +447,7 @@ class OptimizeClasses():
                 self.df.loc[index, 'week'] = str(result)
                 
             result = []
-            for period in range(1, 6):
+            for period in OPTIMIZATION_PERIODS:
                 if pd.isna(week_period):
                     continue
                 if str(period) in week_period:
@@ -492,10 +479,10 @@ class OptimizeClasses():
                                 dict_time_class[f'{season}_{module}_{week}_{period}'] = x[row['授業科目名']]
         
         # 時間割のバッキングを阻止
-        for season in ['春', '秋']:
-            for module in ['A', 'B', 'C']:
-                for week in ['月', '火', '水', '木', '金']:
-                    for period in range(1, 6):
+        for season in OPTIMIZATION_SEASONS:
+            for module in OPTIMIZATION_MODULES:
+                for week in WEEK_OPTIONS:
+                    for period in OPTIMIZATION_PERIODS:
                         if f'{season}_{module}_{week}_{period}' in dict_time_class.keys():
                             problem += dict_time_class[f'{season}_{module}_{week}_{period}'] <= 1
                             
@@ -535,7 +522,7 @@ class OptimizeClasses():
         #print('専門基礎科目', '社会工学')       
 
 if __name__ == '__main__':
-    df_grad = pd.read_csv("成績データ.csv", encoding="utf-8")
+    df_grad = pd.read_csv(DEFAULT_TRANSCRIPT_PATH, encoding="utf-8")
     recommender = TopicBasedRecommender(df_grad, num_topics=30)
     recommender.assign_info_to_courses()
     recommender.create_lda_model()

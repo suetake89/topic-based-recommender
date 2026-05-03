@@ -1,7 +1,16 @@
-import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
+from config import (
+    MODULE_OPTIONS,
+    NO_FILTER,
+    PERIOD_OPTIONS,
+    PROGRAM_REQUIREMENTS,
+    SEASON_OPTIONS,
+    SYLLABUS_YEAR,
+    WEEK_OPTIONS,
+)
+from io_utils import read_default_transcript, read_table
 from recommend_algo import OptimizeClasses, TopicBasedRecommender
 
 st.set_page_config(
@@ -27,7 +36,7 @@ with st.sidebar:
     st.write("")
     st.write("🔎気になった授業はすぐシラバスへ飛べるので是非面白そうな授業を探してみてください！")
     st.write("")
-    st.write("※授業は2024年度")
+    st.write(f"※授業は{SYLLABUS_YEAR}年度")
     
 st.title("大学院授業推薦システム")
 
@@ -42,23 +51,22 @@ with tab0:
         #if 'recommender' in st.session_state:
         #    recommender = st.session_state['recommender']
         #else:
-        report_df = pd.read_csv('成績データ.csv')
+        report_df = read_default_transcript()
         recommender = TopicBasedRecommender(report_df, num_topics=15)
         recommender.assign_info_to_courses()
-        report_df = pd.read_csv('成績データ.csv')
         keywords_list = recommender.get_keywords_list()
         opt = OptimizeClasses(recommender.df_grad_courses)
         m0, m1, m2, m3, m4, m5 = st.columns((1, 1, 1, 1, 1, 1))
-        proglam = m0.selectbox('学位プログラムを選択してください:', ['指定なし'] + opt.df['学位プログラム'].unique().tolist())
-        season = m1.selectbox('学期を選択してください:', ['指定なし'] + ['春', '秋', '春季休業中', '秋C春季休業中', '通年'])
-        module = m2.selectbox('モジュールを選択してください:', ['指定なし'] + ['A', 'B', 'C', '集中'])
-        week = m3.selectbox('曜日を選択してください:', ['指定なし'] + ['月', '火', '水', '木', '金'])
-        period = m4.selectbox('時限を選択してください:', ['指定なし'] + ['1', '2', '3', '4', '5', '6'])
-        keyword = m5.selectbox('キーワードを入力してください:', ['指定なし'] + keywords_list)
+        proglam = m0.selectbox('学位プログラムを選択してください:', [NO_FILTER] + opt.df['学位プログラム'].unique().tolist())
+        season = m1.selectbox('学期を選択してください:', [NO_FILTER] + SEASON_OPTIONS)
+        module = m2.selectbox('モジュールを選択してください:', [NO_FILTER] + MODULE_OPTIONS)
+        week = m3.selectbox('曜日を選択してください:', [NO_FILTER] + WEEK_OPTIONS)
+        period = m4.selectbox('時限を選択してください:', [NO_FILTER] + PERIOD_OPTIONS)
+        keyword = m5.selectbox('キーワードを入力してください:', [NO_FILTER] + keywords_list)
         select_list = [proglam, season, module, week, period, keyword]
         temp = opt.df.copy()
         for i, select in enumerate(select_list):
-            if select != '指定なし':
+            if select != NO_FILTER:
                 if i == 0:
                     temp = temp[temp['学位プログラム']==select]
                 elif i in [1, 2, 3, 4]:
@@ -83,9 +91,9 @@ with tab0:
                     },
                 )
         st.info(
-            """
+            f"""
             ※こちらでは主に選択必修となる、研究群共通科目群を表示します。
-            [「大学院 履修方法・修了要件」はここから参照できます（2024年版）](https://www.tsukuba.ac.jp/education/g-courses-handbook/2024rishu.html)
+            [「大学院 履修方法・修了要件」はここから参照できます（{SYLLABUS_YEAR}年版）](https://www.tsukuba.ac.jp/education/g-courses-handbook/{SYLLABUS_YEAR}rishu.html)
             """
         )
 
@@ -100,6 +108,7 @@ with tab1:
             """
         )
         with st.form("upload_form"):
+            df = None
             # ファイルアップロード
             report = st.file_uploader(
                 "成績表をアップロード",
@@ -109,22 +118,15 @@ with tab1:
 
             # アップロードされた場合の処理
             if report is not None:
-                # ファイルタイプのチェック
-                if report.name.endswith('.csv'):
-                    st.write("CSVファイルがアップロードされました。")
-                    df = pd.read_csv(report)
-
-                elif report.name.endswith(('.xlsx', '.xls')):
-                    st.write("Excelファイルがアップロードされました。")
-                    df = pd.read_excel(report)
-
-                else:
-                    st.error("対応していないファイル形式です。"
-                            )
+                try:
+                    df = read_table(report)
+                    st.write("成績表ファイルがアップロードされました。")
+                except ValueError as exc:
+                    st.error(str(exc))
                 
             submitted = st.form_submit_button("データアップロード")
             
-            if submitted and report:
+            if submitted and report and df is not None:
                 df = df[df['総合評価']!='履修中']
                 st.write("修正が必要な場合は、以下のテーブルを編集してください。")
                 report_df = st.data_editor(df)
@@ -136,7 +138,7 @@ with tab1:
         with st.form("upload_form_2"):
             submitted = st.form_submit_button("仮想データを使用")
             if submitted:
-                df = pd.read_csv('成績データ.csv')
+                df = read_default_transcript()
                 df = df[df['総合評価']!='履修中']
                 st.write("修正が必要な場合は、以下のテーブルを編集してください。")
                 report_df = st.data_editor(df)
@@ -312,15 +314,9 @@ with tab4:
         st.markdown("")
         program = st.selectbox(
                 "学位プログラムを選択してください。",
-                ("社会工学学位プログラム", "サービス工学学位プログラム", "リスク・レジリエンス工学学位プログラム", "情報理工学位プログラム", "知能機能システム学位プログラム", "構造エネルギー工学学位プログラム"),
+                tuple(PROGRAM_REQUIREMENTS.keys()),
             )
-        requirements = {"社会工学学位プログラム":{'学位番号':'1', '選択必修数':24, '専門基礎科目かつ専攻':6, '専門基礎科目かつ専攻以外':2, '専門科目かつ専攻':10, '専門科目かつ専攻以外':0, '関連科目名':'社会工学関連科目'}, 
-                        "サービス工学学位プログラム":{'学位番号':'2', '選択必修数':10, '専門基礎科目かつ専攻':4, '専門基礎科目かつ専攻以外':2, '専門科目かつ専攻':2, '専門科目かつ専攻以外':0, '関連科目名':'サービス工学関連科目'}, 
-                        "リスク・レジリエンス工学学位プログラム":{'学位番号':'3', '選択必修数':16, '専門基礎科目かつ専攻':0, '専門基礎科目かつ専攻以外':0, '専門科目かつ専攻':0, '専門科目かつ専攻以外':0, '関連科目名':'リスク・レジリエンス工学関連科目'}, 
-                        "情報理工学位プログラム":{'学位番号':'4', '選択必修数':18, '専門基礎科目かつ専攻':0, '専門基礎科目かつ専攻以外':0, '専門科目かつ専攻':0, '専門科目かつ専攻以外':0, '関連科目名':'情報理工関連科目'}, 
-                        "知能機能システム学位プログラム":{'学位番号':'5', '選択必修数':17, '専門基礎科目かつ専攻':0, '専門基礎科目かつ専攻以外':0, '専門科目かつ専攻':0, '専門科目かつ専攻以外':0, '関連科目名':'知能機能システム関連科目'}, 
-                        "構造エネルギー工学学位プログラム":{'学位番号':'6', '選択必修数':18, '専門基礎科目かつ専攻':0, '専門基礎科目かつ専攻以外':0, '専門科目かつ専攻':0, '専門科目かつ専攻以外':0, '関連科目名':'構造エネルギー工学関連科目'}
-                        }
+        requirements = PROGRAM_REQUIREMENTS
         
         if st.button("スケジューリングを実行"):
             recommender = st.session_state['recommender']
