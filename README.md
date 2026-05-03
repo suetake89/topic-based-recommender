@@ -116,7 +116,7 @@ pip install -r requirements.txt
 Streamlitアプリを起動します。
 
 ```bash
-streamlit run src/recommend_graduate_classes.py
+streamlit run recommend_graduate_classes.py
 ```
 
 ---
