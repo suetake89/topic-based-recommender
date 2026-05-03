@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from config import (
+from src.config import (
     MODULE_OPTIONS,
     NO_FILTER,
     PERIOD_OPTIONS,
@@ -10,8 +10,8 @@ from config import (
     SYLLABUS_YEAR,
     WEEK_OPTIONS,
 )
-from io_utils import read_default_transcript, read_table
-from recommend_algo import OptimizeClasses, TopicBasedRecommender
+from src.io_utils import read_default_transcript, read_table
+from src.recommend_algo import OptimizeClasses, TopicBasedRecommender
 
 st.set_page_config(
     page_title="大学院授業推薦システム",

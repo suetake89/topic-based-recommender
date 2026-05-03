@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import pulp
 from gensim import corpora, models
 
-from config import (
+from src.config import (
     COURSE_DATA_FILES,
     DEFAULT_TOPIC_NAME_PREFIX,
     DEFAULT_TRANSCRIPT_PATH,

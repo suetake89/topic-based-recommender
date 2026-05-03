@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import DEFAULT_TRANSCRIPT_PATH
+from src.config import DEFAULT_TRANSCRIPT_PATH
 
 
 def read_table(file_or_path):
